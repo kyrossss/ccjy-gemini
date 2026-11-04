@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-serif: 'Noto Serif SC', 'Cormorant Garamond', serif;
+    --font-display: 'Cormorant Garamond', 'Noto Serif SC', serif;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #F8F6F0;
+    color: #1A1F1D;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Classical Chinese Serif display headings */
+  .font-oriental-serif {
+    font-family: var(--font-serif);
+    letter-spacing: 0.05em;
+  }
+
+  .font-display-serif {
+    font-family: var(--font-display);
+    letter-spacing: 0.04em;
+  }
+
+  /* Paper grain subtle background */
+  .bg-paper-washi {
+    background-color: #FAF8F3;
+    background-image: radial-gradient(rgba(30, 35, 32, 0.03) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+
+  /* Hide scrollbar for clean horizontal scrolls */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

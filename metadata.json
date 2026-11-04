@@ -1,0 +1,6 @@
+{
+  "name": "璟所东方茶物 | YUN TEA GALLERY",
+  "description": "东方时尚茶文化与器物美学小程序。涵盖名家手拉朱泥壶、古树普洱与岩茶精选、私享茶室预约、会员身份代币体系、积分兑换与名物寄售流转。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

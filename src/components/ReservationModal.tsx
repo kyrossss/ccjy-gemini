@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
-import { X, Calendar as CalIcon, Users, Clock, CheckCircle2, QrCode, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Calendar as CalIcon,
+  Users,
+  Clock,
+  CheckCircle2,
+  QrCode,
+  Sparkles,
+  Leaf,
+} from 'lucide-react';
 import { TeaRoom, SOMMELIERS } from '../data/mockData';
-import { MemberTierLevel, calculateDiscountedPrice, validateReservation, TIER_CONFIGS } from '../utils/teaLogic';
+import {
+  MemberTierLevel,
+  calculateDiscountedPrice,
+  validateReservation,
+  TIER_CONFIGS,
+} from '../utils/teaLogic';
+import { buildAvailableSalonTeas } from '../utils/orderResumeLogic';
 import { zenAudio } from '../utils/audioZen';
 import { BookingInvitationData } from './TeaInvitationModal';
 
@@ -11,7 +26,9 @@ interface ReservationModalProps {
   room: TeaRoom | null;
   userTier: MemberTierLevel;
   initialDate?: string;
+  preselectedTea?: string | null;
   onOpenInvitation?: (booking: BookingInvitationData) => void;
+  onOpenPosterModal?: (booking: BookingInvitationData) => void;
   onConfirmBooking: (booking: {
     id: string;
     roomName: string;
@@ -21,6 +38,7 @@ interface ReservationModalProps {
     sommelier: string;
     pairedTea: string;
     finalPrice: number;
+    bookingCode?: string;
   }) => void;
 }
 
@@ -30,7 +48,9 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
   room,
   userTier,
   initialDate,
+  preselectedTea,
   onOpenInvitation,
+  onOpenPosterModal,
   onConfirmBooking,
 }) => {
   // Tomorrow as fallback date
@@ -40,22 +60,35 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
 
   const [date, setDate] = useState(initialDate || defaultDateStr);
   const [timeSlot, setTimeSlot] = useState('午席 (14:00 - 17:00 · 浮生半日)');
-
-  React.useEffect(() => {
-    if (initialDate) {
-      setDate(initialDate);
-    }
-  }, [initialDate, isOpen]);
   const [guests, setGuests] = useState(2);
   const [selectedSommelier, setSelectedSommelier] = useState(SOMMELIERS[0].name);
-  const [selectedTea, setSelectedTea] = useState(room?.recommendedTeas[0] || '老枞水仙');
+  const [selectedTea, setSelectedTea] = useState(
+    preselectedTea || room?.recommendedTeas[0] || '老枞水仙'
+  );
   const [errorMsg, setErrorMsg] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [createdPass, setCreatedPass] = useState<string | null>(null);
   const [lastBookingData, setLastBookingData] = useState<BookingInvitationData | null>(null);
 
+  useEffect(() => {
+    if (initialDate) {
+      setDate(initialDate);
+    }
+  }, [initialDate, isOpen]);
+
+  useEffect(() => {
+    if (isOpen && room) {
+      setIsSuccess(false);
+      setErrorMsg('');
+      const available = buildAvailableSalonTeas(room.recommendedTeas, preselectedTea);
+      setSelectedTea(available[0] || '老枞水仙');
+      setGuests((prev) => Math.min(prev, room.maxGuests));
+    }
+  }, [isOpen, room, preselectedTea]);
+
   if (!isOpen || !room) return null;
 
+  const availableTeas = buildAvailableSalonTeas(room.recommendedTeas, preselectedTea);
   const discountedPrice = calculateDiscountedPrice(room.basePrice, userTier);
   const tierConfig = TIER_CONFIGS[userTier];
 
@@ -90,10 +123,17 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-[#FAF8F5] w-full max-w-lg rounded-3xl max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl border border-[#E4DEC9] flex flex-col relative">
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#FAF8F5] w-full max-w-lg rounded-3xl max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl border border-[#E4DEC9] flex flex-col relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close Button */}
         <button
+          type="button"
           onClick={onClose}
           className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/10 hover:bg-black/20 text-[#29322D] flex items-center justify-center transition-colors"
           aria-label="关闭预约"
@@ -130,7 +170,9 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <span className="text-[10px] text-[#868074] block">日期时段</span>
-                  <span className="font-medium text-[#202723]">{date} · {timeSlot.split(' ')[0]}</span>
+                  <span className="font-medium text-[#202723]">
+                    {date} · {timeSlot.split(' ')[0]}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-[#868074] block">入席人数</span>
@@ -156,6 +198,22 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
             </div>
 
             <div className="space-y-2 pt-1">
+              {onOpenPosterModal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (lastBookingData) {
+                      onOpenPosterModal(lastBookingData);
+                    }
+                    onClose();
+                  }}
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-[#8F733E] via-[#A48548] to-[#8F733E] hover:opacity-95 text-white font-oriental-serif text-xs font-bold tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#FFF0D0]" />
+                  <span>生成精美微信邀约海报 (AI 诗画合璧)</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
@@ -180,7 +238,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
             </div>
           </div>
         ) : (
-          <form onSubmit={handleBooking} className="p-6 space-y-5">
+          <form onSubmit={handleBooking} className="p-6 space-y-4">
             {/* Header info */}
             <div>
               <span className="text-[10px] tracking-widest text-[#847E72] font-mono uppercase block">
@@ -248,6 +306,50 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
                     {timeSlot === slot && <span className="text-[10px] text-[#D8C496]">已选</span>}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Tea Selection (Closed Loop with Tea Profile Dossier & Terroir Explorer) */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-oriental-serif text-[#333C36] flex items-center gap-1.5">
+                  <Leaf className="w-3.5 h-3.5 text-[#2F6740]" />
+                  <span>随席预点佳茗</span>
+                </label>
+                {preselectedTea && selectedTea === preselectedTea && (
+                  <span className="text-[10px] font-oriental-serif text-[#8F733E] bg-[#FAF5E8] px-2 py-0.5 rounded-md border border-[#E5D6B8]">
+                    ✦ 已自动锁定您预选的试饮茗茶
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {availableTeas.map((teaName) => {
+                  const isChosen = selectedTea === teaName;
+                  const isPreselected = preselectedTea === teaName;
+                  return (
+                    <button
+                      type="button"
+                      key={teaName}
+                      onClick={() => setSelectedTea(teaName)}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-oriental-serif border transition-all text-left flex items-center justify-between gap-1 ${
+                        isChosen
+                          ? 'bg-[#232B26] text-[#FAF8F5] border-[#232B26] font-bold shadow-2xs'
+                          : 'bg-white text-[#4A443A] border-[#DED7C7] hover:border-[#232B26]'
+                      }`}
+                    >
+                      <span className="truncate">{teaName}</span>
+                      {isPreselected && (
+                        <span
+                          className={`text-[9px] shrink-0 px-1 rounded ${
+                            isChosen ? 'bg-[#8F733E] text-white' : 'bg-[#FAF5E8] text-[#8F733E]'
+                          }`}
+                        >
+                          预选
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -331,7 +433,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
 
               <button
                 type="submit"
-                className="px-6 h-11 rounded-xl bg-[#232B26] hover:bg-[#181E1A] text-white font-oriental-serif text-xs font-semibold tracking-widest flex items-center gap-2 transition-all active:scale-[0.98] shadow-sm"
+                className="px-6 h-11 rounded-xl bg-[#232B26] hover:bg-[#181E1A] text-white font-oriental-serif text-xs font-semibold tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm"
               >
                 <Users className="w-3.5 h-3.5" />
                 <span>确认预留茶席</span>

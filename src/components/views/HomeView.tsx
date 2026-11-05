@@ -1,28 +1,47 @@
-import React from 'react';
-import { ArrowRight, Sparkles, Feather, ShieldCheck } from 'lucide-react';
-import { PRODUCTS, TeaItem, TEA_ROOMS } from '../../data/mockData';
+import React, { useState } from 'react';
+import { ArrowRight, Sparkles, Feather } from 'lucide-react';
+import { PRODUCTS, TeaItem, TEA_ROOMS, TeaRoom } from '../../data/mockData';
 import { MemberTierLevel, calculateDiscountedPrice } from '../../utils/teaLogic';
 import { TabKey } from '../TabBar';
 import { TeaWisdomSection } from '../TeaWisdomSection';
 import { TeaWisdomItem } from '../../data/teaWisdomData';
 import { TeaTerroirExplorer } from '../TeaTerroirExplorer';
+import { OrientalEmptyState } from '../OrientalEmptyState';
+import { OfficialArchiveSection } from '../OfficialArchiveSection';
+
+import { ShopCategoryFilter } from './ShopView';
 
 interface HomeViewProps {
   onSelectTab: (tab: TabKey) => void;
+  onFilterShop?: (category: ShopCategoryFilter, keyword: string) => void;
   onOpenProduct: (item: TeaItem) => void;
   onOpenRitual: () => void;
   onOpenWisdom: (item: TeaWisdomItem) => void;
+  onReserveTeaInSalon?: (teaName: string) => void;
+  onQuickReserveRoom?: (room: TeaRoom) => void;
   userTier: MemberTierLevel;
 }
 
+type HomeFeaturedFilter = 'all' | 'tea' | 'teapot' | 'teaware' | 'kiln-upcoming';
+
 export const HomeView: React.FC<HomeViewProps> = ({
   onSelectTab,
+  onFilterShop,
   onOpenProduct,
   onOpenRitual,
   onOpenWisdom,
+  onReserveTeaInSalon,
+  onQuickReserveRoom,
   userTier,
 }) => {
-  const featuredTeas = PRODUCTS.filter((p) => p.featured);
+  const [featuredFilter, setFeaturedFilter] = useState<HomeFeaturedFilter>('all');
+
+  const allFeaturedTeas = PRODUCTS.filter((p) => p.featured);
+  const featuredTeas = allFeaturedTeas.filter((p) => {
+    if (featuredFilter === 'all') return true;
+    if (featuredFilter === 'kiln-upcoming') return false;
+    return p.category === featuredFilter;
+  });
 
   const handleOpenProductById = (productId: string) => {
     const found = PRODUCTS.find((p) => p.id === productId);
@@ -60,12 +79,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           <div className="pt-2 flex items-center gap-3">
             <button
-              onClick={() => onSelectTab('shop')}
+              type="button"
+              onClick={() => {
+                if (onFilterShop) onFilterShop('all', '');
+                else onSelectTab('shop');
+              }}
               className="px-4 py-2 rounded-full bg-[#FAF8F5] text-[#1E2320] text-xs font-oriental-serif font-semibold tracking-wider hover:bg-white transition-transform active:scale-95 shadow-sm"
             >
               品鉴器物与茶
             </button>
             <button
+              type="button"
               onClick={() => onSelectTab('room')}
               className="px-4 py-2 rounded-full bg-white/15 backdrop-blur-xs border border-white/30 text-white text-xs font-oriental-serif tracking-wider hover:bg-white/25 transition-transform active:scale-95"
             >
@@ -79,15 +103,46 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <section className="px-5">
         <div className="grid grid-cols-4 gap-2 text-center">
           {[
-            { label: '潮州手拉', en: 'ZHUNI POT', icon: '壶', tab: 'shop' as TabKey },
-            { label: '凤凰单丛', en: 'DANCONG', icon: '丛', tab: 'shop' as TabKey },
-            { label: '武夷正岩', en: 'WUYI ROCK', icon: '岩', tab: 'shop' as TabKey },
-            { label: '爻·茶简', en: 'YÁO WAND', icon: '爻', tab: 'shop' as TabKey },
+            {
+              label: '潮州手拉',
+              en: 'ZHUNI POT',
+              icon: '壶',
+              category: 'teapot' as ShopCategoryFilter,
+              keyword: '潮州',
+            },
+            {
+              label: '凤凰单丛',
+              en: 'DANCONG',
+              icon: '丛',
+              category: 'tea' as ShopCategoryFilter,
+              keyword: '凤凰单丛',
+            },
+            {
+              label: '武夷正岩',
+              en: 'WUYI ROCK',
+              icon: '岩',
+              category: 'tea' as ShopCategoryFilter,
+              keyword: '武夷',
+            },
+            {
+              label: '爻·茶简',
+              en: 'YÁO WAND',
+              icon: '爻',
+              category: 'yao' as ShopCategoryFilter,
+              keyword: '',
+            },
           ].map((cat, i) => (
             <button
+              type="button"
               key={i}
-              onClick={() => onSelectTab(cat.tab)}
-              className="p-3 rounded-2xl bg-white border border-[#EBE6DC] shadow-xs hover:border-[#232B26] transition-all group flex flex-col items-center"
+              onClick={() => {
+                if (onFilterShop) {
+                  onFilterShop(cat.category, cat.keyword);
+                } else {
+                  onSelectTab('shop');
+                }
+              }}
+              className="p-3 rounded-2xl bg-white border border-[#EBE6DC] shadow-xs hover:border-[#232B26] transition-all group flex flex-col items-center active:scale-98"
             >
               <div className="w-9 h-9 rounded-full bg-[#F5F2EB] group-hover:bg-[#232B26] group-hover:text-white transition-colors flex items-center justify-center font-oriental-serif text-sm font-bold text-[#303833] mb-1.5">
                 {cat.icon}
@@ -129,7 +184,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* Featured Teas & Hand-Pulled Pots (Gallery Grid) */}
+      {/* Featured Teas & Hand-Pulled Pots (Gallery Grid with Oriental Empty State Fallback) */}
       <section className="px-5 space-y-3">
         <div className="flex items-baseline justify-between">
           <div>
@@ -141,6 +196,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={() => onSelectTab('shop')}
             className="text-xs text-[#8F733E] font-medium flex items-center gap-1 hover:underline"
           >
@@ -149,50 +205,105 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {featuredTeas.slice(0, 4).map((item) => {
-            const discounted = calculateDiscountedPrice(item.price, userTier);
-            return (
-              <div
-                key={item.id}
-                onClick={() => onOpenProduct(item)}
-                className="bg-white rounded-2xl overflow-hidden border border-[#ECE6DB] shadow-xs cursor-pointer group hover:border-[#232B26] transition-all flex flex-col"
-              >
-                <div className="relative aspect-4/3 w-full bg-[#181D1A] overflow-hidden">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-xs text-[10px] text-[#EFEAE1] font-mono tracking-widest">
-                    {item.subCategory}
-                  </div>
-                </div>
-
-                <div className="p-3 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-oriental-serif text-xs font-bold text-[#232B26] line-clamp-1">
-                      {item.name}
-                    </h3>
-                    <p className="text-[10px] text-[#878175] line-clamp-1 mt-0.5 font-light">
-                      {item.tagline}
-                    </p>
-                  </div>
-
-                  <div className="pt-2 mt-2 border-t border-[#F2EEE6] flex items-baseline justify-between">
-                    <span className="font-mono text-xs font-bold text-[#1E2320]">
-                      ¥{discounted.toLocaleString()}
-                    </span>
-                    <span className="text-[9px] text-[#8F733E] font-medium">
-                      专席礼遇
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        {/* Curated Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+          {[
+            { id: 'all', label: '全部馆藏' },
+            { id: 'tea', label: '山场原叶' },
+            { id: 'teapot', label: '手拉朱泥壶' },
+            { id: 'teaware', label: '赏瓷雅器' },
+            { id: 'kiln-upcoming', label: '待出窑孤品' },
+          ].map((tab) => (
+            <button
+              type="button"
+              key={tab.id}
+              onClick={() => setFeaturedFilter(tab.id as HomeFeaturedFilter)}
+              className={`px-3 py-1 rounded-xl text-xs font-oriental-serif whitespace-nowrap shrink-0 border transition-all ${
+                featuredFilter === tab.id
+                  ? 'bg-[#232B26] text-white border-[#232B26] font-bold shadow-2xs'
+                  : 'bg-white text-[#6C665A] border-[#E7E0D2] hover:border-[#232B26]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
+
+        {featuredTeas.length === 0 ? (
+          <OrientalEmptyState
+            variant="home"
+            compact
+            onPrimaryAction={() => {
+              if (onFilterShop) onFilterShop('all', '');
+              else onSelectTab('shop');
+            }}
+            onSecondaryAction={() => onSelectTab('consign')}
+            onSmartRecommendationClick={(rec) => {
+              if (rec.targetTab === 'shop' && onFilterShop) {
+                onFilterShop(rec.targetCategory || 'all', rec.searchKeyword || '');
+              } else {
+                onSelectTab(rec.targetTab);
+              }
+            }}
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {featuredTeas.slice(0, 4).map((item) => {
+              const discounted = calculateDiscountedPrice(item.price, userTier);
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => onOpenProduct(item)}
+                  className="bg-white rounded-2xl overflow-hidden border border-[#ECE6DB] shadow-xs cursor-pointer group hover:border-[#232B26] transition-all flex flex-col"
+                >
+                  <div className="relative aspect-4/3 w-full bg-[#181D1A] overflow-hidden">
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.src = '/assets/aistudio/IMG_6486_3fb9fe71.JPG';
+                      }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-xs text-[10px] text-[#EFEAE1] font-mono tracking-widest">
+                      {item.subCategory}
+                    </div>
+                  </div>
+
+                  <div className="p-3 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h3 className="font-oriental-serif text-xs font-bold text-[#232B26] line-clamp-1">
+                        {item.name}
+                      </h3>
+                      <p className="text-[10px] text-[#878175] line-clamp-1 mt-0.5 font-light">
+                        {item.tagline}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 mt-2 border-t border-[#F2EEE6] flex items-baseline justify-between">
+                      <span className="font-mono text-xs font-bold text-[#1E2320]">
+                        ¥{discounted.toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-[#8F733E] font-medium">
+                        专席礼遇
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Official Website Full Archive Section (春城嘉叶 · 官网全谱系典藏与品牌志) */}
+      <section className="px-5">
+        <OfficialArchiveSection
+          onOpenProductById={handleOpenProductById}
+          onFilterShop={onFilterShop}
+          onReserveTeaInSalon={onReserveTeaInSalon}
+        />
       </section>
 
       {/* Tea Wisdom & Mindful Brewing Principles (茶艺心法 · 闻香识器) */}
@@ -204,11 +315,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <section className="px-5">
         <TeaTerroirExplorer
           onOpenProductById={handleOpenProductById}
-          onExploreShop={() => onSelectTab('shop')}
+          onExploreShop={() => {
+            if (onFilterShop) onFilterShop('all', '');
+            else onSelectTab('shop');
+          }}
+          onFilterShopByTerroir={(keyword) => {
+            if (onFilterShop) onFilterShop('tea', keyword);
+            else onSelectTab('shop');
+          }}
+          onReserveTeaInSalon={onReserveTeaInSalon}
         />
       </section>
 
-      {/* Editorial Story Section (Reference IMG_6489 & IMG_6490) */}
+      {/* Editorial Story Section (Using Official chunchengjiaye.com Craftsmanship Photography) */}
       <section className="px-5">
         <div className="bg-[#F3EFE7] rounded-3xl p-5 border border-[#E3DCCB] space-y-4">
           <div className="flex items-center gap-2 text-xs text-[#8F733E] font-mono tracking-widest uppercase">
@@ -218,9 +337,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           <div className="relative aspect-16/9 rounded-2xl overflow-hidden bg-black">
             <img
-              src="/assets/aistudio/IMG_6490_7c61932b.JPG"
-              alt="春城嘉叶 诗时拾食"
+              src="https://www.chunchengjiaye.com/images/craftsmanship/story-craft-01.jpg"
+              alt="春城嘉叶 一叶有来处，一器有分寸"
               referrerPolicy="no-referrer"
+              onError={(e) => {
+                e.currentTarget.src = '/assets/aistudio/IMG_6490_7c61932b.JPG';
+              }}
               className="w-full h-full object-cover opacity-90"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4">
@@ -231,22 +353,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
 
           <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
-            <div className="p-3 bg-white/80 rounded-xl border border-[#E4DDD0]">
-              <span className="font-bold text-[#232B26] block font-oriental-serif mb-1">
-                手作茗壶 · 潮州手拉
+            <button
+              type="button"
+              onClick={() => {
+                if (onFilterShop) onFilterShop('teapot', '潮州');
+                else onSelectTab('shop');
+              }}
+              className="p-3 bg-white/80 hover:bg-white rounded-xl border border-[#E4DDD0] hover:border-[#232B26] text-left transition-all group"
+            >
+              <span className="font-bold text-[#232B26] group-hover:text-[#8F733E] flex items-center justify-between font-oriental-serif mb-1">
+                <span>手作茗壶 · 潮州手拉</span>
+                <ArrowRight className="w-3 h-3 opacity-60 group-hover:translate-x-0.5 transition-transform" />
               </span>
               <p className="text-[11px] text-[#736C60] font-light leading-relaxed">
                 吴瑞全与谢华名家亲制，孟臣梨壶与思婷形制，微米气孔专为单丛工夫茶而生。
               </p>
-            </div>
-            <div className="p-3 bg-white/80 rounded-xl border border-[#E4DDD0]">
-              <span className="font-bold text-[#232B26] block font-oriental-serif mb-1">
-                茶器寄售 · 保真流转
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectTab('consign')}
+              className="p-3 bg-white/80 hover:bg-white rounded-xl border border-[#E4DDD0] hover:border-[#232B26] text-left transition-all group"
+            >
+              <span className="font-bold text-[#232B26] group-hover:text-[#8F733E] flex items-center justify-between font-oriental-serif mb-1">
+                <span>茶器寄售 · 保真流转</span>
+                <ArrowRight className="w-3 h-3 opacity-60 group-hover:translate-x-0.5 transition-transform" />
               </span>
               <p className="text-[11px] text-[#736C60] font-light leading-relaxed">
                 春城嘉叶茶器与寄售平台（含闲鱼专营），实物一器一档鉴藏与恒温母仓管护。
               </p>
-            </div>
+            </button>
           </div>
         </div>
       </section>
@@ -263,6 +398,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={() => onSelectTab('room')}
             className="text-xs text-[#8F733E] font-medium flex items-center gap-1 hover:underline"
           >
@@ -302,7 +438,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
 
             <button
-              onClick={() => onSelectTab('room')}
+              type="button"
+              onClick={() => {
+                if (onQuickReserveRoom) {
+                  onQuickReserveRoom(TEA_ROOMS[0]);
+                } else {
+                  onSelectTab('room');
+                }
+              }}
               className="w-full h-10 rounded-xl bg-[#232B26] hover:bg-[#181E1A] text-white font-oriental-serif text-xs font-medium tracking-widest flex items-center justify-center gap-1.5 transition-all shadow-xs"
             >
               <span>预约今日或后日席位</span>
@@ -314,3 +457,4 @@ export const HomeView: React.FC<HomeViewProps> = ({
     </div>
   );
 };
+

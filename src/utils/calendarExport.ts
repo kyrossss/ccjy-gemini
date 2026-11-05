@@ -110,3 +110,69 @@ export function downloadCalendarEvent(event: CalendarEventData): boolean {
     return false;
   }
 }
+
+export interface CountdownParts {
+  totalSeconds: number;
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  isUpcoming: boolean;
+  stageTag: string;
+  poeticHint: string;
+}
+
+/**
+ * Parses a booking date ('YYYY-MM-DD') and timeSlot into a local Date object representing the start of the tea session.
+ */
+export function parseBookingTargetDate(dateStr: string, timeSlot: string): Date {
+  const times = parseSlotTimes(timeSlot);
+  const parts = dateStr.split('-').map((p) => parseInt(p, 10));
+  if (parts.length === 3 && !parts.some(isNaN)) {
+    return new Date(parts[0], parts[1] - 1, parts[2], times.startHour, times.startMinute, 0, 0);
+  }
+  return new Date(dateStr);
+}
+
+/**
+ * Calculates dynamic countdown parts (days, hours, minutes, seconds) between `now` and `targetDate`.
+ */
+export function calculateCountdownParts(targetDate: Date, now: Date = new Date()): CountdownParts {
+  const diffMs = targetDate.getTime() - now.getTime();
+  const totalSeconds = Math.max(0, Math.floor(diffMs / 1000));
+  const isUpcoming = diffMs > 0;
+
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  let stageTag = '茶席预热中';
+  let poeticHint = '侍茶师已为您甄选山泉与茶器，静候吉时入席';
+
+  if (!isUpcoming) {
+    stageTag = '茶席进行或已圆满';
+    poeticHint = '茶汤正温，愿这一席山场风味长留齿颊';
+  } else if (days === 0 && hours < 3) {
+    stageTag = '炭火初温 · 即将开席';
+    poeticHint = '竹炉汤沸，手拉朱泥壶已温润候客，请从容赴席';
+  } else if (days === 0) {
+    stageTag = '今日吉席 · 烹泉以待';
+    poeticHint = '今日宜静心品茗，私享茶舍已为您留好清幽席位';
+  } else if (days <= 3) {
+    stageTag = '席次预热 · 择器醒茶';
+    poeticHint = '专属侍茶师正为您醒茶备器，倒计吉时开启幽玄茶聚';
+  }
+
+  return {
+    totalSeconds,
+    days,
+    hours,
+    minutes,
+    seconds,
+    isUpcoming,
+    stageTag,
+    poeticHint,
+  };
+}
+

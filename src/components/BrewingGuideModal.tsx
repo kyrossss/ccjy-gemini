@@ -1,23 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { X, Flame, Scale, Coffee, Clock, Sparkles, BookOpen, Volume2, CheckCircle2, Play, Pause, RotateCcw } from 'lucide-react';
+import { X, Flame, Scale, Coffee, Clock, Sparkles, BookOpen, Volume2, Play, Pause, RotateCcw, Calendar } from 'lucide-react';
 import { TeaWisdomItem } from '../data/teaWisdomData';
-import { getSteepTimeForRound, formatSteepDurationCN } from '../utils/brewingLogic';
+import {
+  getSteepTimeForRound,
+  formatSteepDurationCN,
+  resolveWisdomShopAndSalonTarget,
+} from '../utils/brewingLogic';
 import { formatTimerSeconds } from '../utils/orderResumeLogic';
 import { zenAudio } from '../utils/audioZen';
 
 interface BrewingGuideModalProps {
   item: TeaWisdomItem | null;
   onClose: () => void;
-  onExploreProducts?: () => void;
+  onExploreProducts?: (
+    category?: 'all' | 'tea' | 'teapot' | 'teaware' | 'yao',
+    keyword?: string
+  ) => void;
+  onReserveSalonWithTea?: (teaName: string) => void;
 }
 
 export const BrewingGuideModal: React.FC<BrewingGuideModalProps> = ({
   item,
   onClose,
   onExploreProducts,
+  onReserveSalonWithTea,
 }) => {
   const [selectedRound, setSelectedRound] = useState<number>(1);
-  const [activeStepTab, setActiveStepTab] = useState<number>(0);
 
   // Live Steep Timer State
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
@@ -58,6 +66,7 @@ export const BrewingGuideModal: React.FC<BrewingGuideModalProps> = ({
   if (!item) return null;
 
   const currentSteepTime = getSteepTimeForRound(item, selectedRound);
+  const closedLoopTarget = resolveWisdomShopAndSalonTarget(item);
 
   const handleRoundChange = (round: number) => {
     zenAudio.playZenChime();
@@ -305,7 +314,7 @@ export const BrewingGuideModal: React.FC<BrewingGuideModalProps> = ({
                             setSecondsRemaining(currentSteepTime);
                             setTimerFinished(false);
                           }}
-                          className="w-8 h-8 rounded-xl bg-[#F0EBE0] text-[#696256] hover:bg-[#E3DC CE] flex items-center justify-center transition-colors"
+                          className="w-8 h-8 rounded-xl bg-[#F0EBE0] text-[#696256] hover:bg-[#E3DCCE] flex items-center justify-center transition-colors"
                           aria-label="重置计时"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -347,7 +356,7 @@ export const BrewingGuideModal: React.FC<BrewingGuideModalProps> = ({
                         {st.name}
                       </h4>
                     </div>
-                    <span className="text-[10px] font-mono text-[#8F733E] bg-[#F7F2EB] px-2 py-0.5 rounded-md border border-[#E8DFCFA]">
+                    <span className="text-[10px] font-mono text-[#8F733E] bg-[#F7F2EB] px-2 py-0.5 rounded-md border border-[#E8DFCF]">
                       {st.action}
                     </span>
                   </div>
@@ -367,7 +376,7 @@ export const BrewingGuideModal: React.FC<BrewingGuideModalProps> = ({
 
           {/* Cultural Notes */}
           {item.culturalNotes && item.culturalNotes.length > 0 && (
-            <div className="bg-[#F8F5EF] p-4 rounded-2xl border border-[#E5DCce] space-y-2">
+            <div className="bg-[#F8F5EF] p-4 rounded-2xl border border-[#E5DCCE] space-y-2">
               <span className="text-[10px] font-mono text-[#8C8476] uppercase tracking-wider block">
                 CULTURE & TRADITION · 渊源掌故
               </span>
@@ -396,23 +405,44 @@ export const BrewingGuideModal: React.FC<BrewingGuideModalProps> = ({
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 border-t border-[#EAE3D6] bg-white/95 flex items-center justify-between gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 rounded-2xl border border-[#D5CBB9] text-xs font-oriental-serif text-[#5E574B] hover:bg-[#F5F0E8] transition-colors"
-          >
-            收纳心法
-          </button>
+        {/* Footer Actions: Closed-Loop Salon Practice & Targeted Shop Filter */}
+        <div className="p-4 border-t border-[#EAE3D6] bg-white/95 flex items-center justify-between gap-2.5">
+          {onReserveSalonWithTea ? (
+            <button
+              type="button"
+              onClick={() => {
+                zenAudio.playZenChime();
+                onClose();
+                onReserveSalonWithTea(closedLoopTarget.salonTeaName);
+              }}
+              className="flex-1 py-3 px-2 rounded-2xl bg-[#FAF5E8] hover:bg-[#F2E6CC] border border-[#E2D2B0] text-xs font-oriental-serif font-bold text-[#8F733E] transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>携代表茶预约侍茶演习</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-2xl border border-[#D5CBB9] text-xs font-oriental-serif text-[#5E574B] hover:bg-[#F5F0E8] transition-colors"
+            >
+              收纳心法
+            </button>
+          )}
           {onExploreProducts && (
             <button
+              type="button"
               onClick={() => {
+                zenAudio.playZenChime();
                 onClose();
-                onExploreProducts();
+                onExploreProducts(
+                  closedLoopTarget.shopCategory,
+                  closedLoopTarget.shopKeyword
+                );
               }}
-              className="flex-1 py-3 rounded-2xl bg-[#1E2320] text-white text-xs font-oriental-serif font-medium hover:bg-black transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+              className="flex-1 py-3 px-2 rounded-2xl bg-[#1E2320] text-white text-xs font-oriental-serif font-medium hover:bg-black transition-colors flex items-center justify-center gap-1.5 shadow-sm"
             >
-              <span>品鉴相应器物与茶</span>
+              <span>品鉴匹配器物与茶</span>
             </button>
           )}
         </div>
@@ -420,3 +450,4 @@ export const BrewingGuideModal: React.FC<BrewingGuideModalProps> = ({
     </div>
   );
 };
+

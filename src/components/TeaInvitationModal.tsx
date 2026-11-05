@@ -19,12 +19,14 @@ interface TeaInvitationModalProps {
   booking: BookingInvitationData | null;
   isOpen: boolean;
   onClose: () => void;
+  onOpenPosterModal?: (booking: BookingInvitationData) => void;
 }
 
 export const TeaInvitationModal: React.FC<TeaInvitationModalProps> = ({
   booking,
   isOpen,
   onClose,
+  onOpenPosterModal,
 }) => {
   const [calendarSaved, setCalendarSaved] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -244,22 +246,34 @@ export const TeaInvitationModal: React.FC<TeaInvitationModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-[#ECE3D5] bg-white/95 flex flex-col sm:flex-row gap-2.5">
-          <button
-            onClick={handleSaveToCalendar}
-            className="flex-1 py-3 px-4 rounded-2xl bg-[#1E2320] text-white hover:bg-black font-oriental-serif text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm active:scale-98"
-          >
-            <Download className="w-4 h-4 text-[#E7D2A7]" />
-            <span>一键保存到手机日历 (iCal)</span>
-          </button>
+        <div className="p-4 border-t border-[#ECE3D5] bg-white/95 flex flex-col gap-2.5">
+          {onOpenPosterModal && (
+            <button
+              onClick={() => onOpenPosterModal(booking)}
+              className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-[#8F733E] via-[#A48548] to-[#8F733E] hover:opacity-95 text-white font-oriental-serif text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm"
+            >
+              <Sparkles className="w-4 h-4 text-[#FFF2D6]" />
+              <span>生成精美微信邀约海报 (AI 诗画合璧)</span>
+            </button>
+          )}
 
-          <button
-            onClick={handleCopyInvitation}
-            className="py-3 px-4 rounded-2xl bg-[#F6F1E9] border border-[#DDD3C2] text-[#4E473B] hover:bg-[#ECE4D6] font-oriental-serif text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            <span>复制邀友</span>
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <button
+              onClick={handleSaveToCalendar}
+              className="flex-1 py-2.5 px-4 rounded-2xl bg-[#1E2320] text-white hover:bg-black font-oriental-serif text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm active:scale-98"
+            >
+              <Download className="w-4 h-4 text-[#E7D2A7]" />
+              <span>保存到手机日历 (iCal)</span>
+            </button>
+
+            <button
+              onClick={handleCopyInvitation}
+              className="py-2.5 px-4 rounded-2xl bg-[#F6F1E9] border border-[#DDD3C2] text-[#4E473B] hover:bg-[#ECE4D6] font-oriental-serif text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>复制邀友</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

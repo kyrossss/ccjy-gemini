@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WechatShell } from './components/WechatShell';
 import { HeaderNav } from './components/HeaderNav';
 import { TabBar, TabKey } from './components/TabBar';
 import { HomeView } from './components/views/HomeView';
-import { ShopView } from './components/views/ShopView';
+import { ShopView, ShopCategoryFilter } from './components/views/ShopView';
 import { ConsignView } from './components/views/ConsignView';
 import { TeaRoomView } from './components/views/TeaRoomView';
 import { MemberView } from './components/views/MemberView';
@@ -23,61 +23,107 @@ import { BrewingGuideModal } from './components/BrewingGuideModal';
 import { NotificationBanner, NotificationData } from './components/NotificationBanner';
 import { TeaInvitationModal, BookingInvitationData } from './components/TeaInvitationModal';
 import { TeaResumeModal, ResumeTabType } from './components/TeaResumeModal';
+import { TeaProfileDossierModal } from './components/TeaProfileDossierModal';
+import { SalonInvitationPosterModal } from './components/SalonInvitationPosterModal';
+import { CourtesyMoodMemoModal } from './components/CourtesyMoodMemoModal';
 
-import { TeaItem, ConsignmentItem, TeaRoom, PointsItem, CONSIGNMENT_ITEMS } from './data/mockData';
+import {
+  PRODUCTS,
+  TeaItem,
+  ConsignmentItem,
+  TeaRoom,
+  PointsItem,
+  TEA_ROOMS,
+} from './data/mockData';
 import { TeaWisdomItem } from './data/teaWisdomData';
-import { MemberTierLevel, CartItem, calculateTier } from './utils/teaLogic';
-import { UserOrderRecord, INITIAL_USER_ORDERS, createOrderRecord } from './utils/orderResumeLogic';
+import {
+  MemberTierLevel,
+  CartItem,
+  calculateDiscountedPrice,
+  calculateEarnedPoints,
+  calculateTokenReward,
+  resolveUpgradedTier,
+  TIER_CONFIGS,
+} from './utils/teaLogic';
+import {
+  UserOrderRecord,
+  OrderItemRecord,
+  createOrderRecord,
+  createPointsRedeemOrderRecord,
+  createConsignmentPurchaseOrderRecord,
+  updateOrderReview,
+  extractAggregatedOrderReviews,
+  syncOrderReviewToCustomPalateTags,
+} from './utils/orderResumeLogic';
+import { generateCuratedTeaProfile, NICHE_TEA_CATALOG } from './utils/teaProfileLogic';
+import {
+  evaluateImminentBookingCourtesy,
+  CourtesyMoodMemo,
+} from './utils/courtesyNotificationLogic';
+import {
+  loadPersistedAppState,
+  savePersistedAppState,
+  resetPersistedAppState,
+} from './utils/storagePersistence';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<TabKey>('home');
 
+  // Cross-view Shop Filter State (from Home 4 Pillars, D3 Mountain Terroir & Brewing Guide)
+  const [shopFilter, setShopFilter] = useState<{
+    category: ShopCategoryFilter;
+    keyword: string;
+  }>({
+    category: 'all',
+    keyword: '',
+  });
+
+  // Hydrate initial state from localStorage (Round 1 Persistence Closed Loop)
+  const [initialPersisted] = useState(() => loadPersistedAppState());
+
   // Member State
-  const [userTier, setUserTier] = useState<MemberTierLevel>('MASTER');
-  const [leafPoints, setLeafPoints] = useState<number>(6850);
-  const [chaTokens, setChaTokens] = useState<number>(320);
-  const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
+  const [userTier, setUserTier] = useState<MemberTierLevel>(initialPersisted.userTier);
+  const [leafPoints, setLeafPoints] = useState<number>(initialPersisted.leafPoints);
+  const [chaTokens, setChaTokens] = useState<number>(initialPersisted.chaTokens);
+  const [hasCheckedInToday, setHasCheckedInToday] = useState<boolean>(
+    initialPersisted.hasCheckedInToday
+  );
 
   // Cart State
-  const [cartItems, setCartItems] = useState<(CartItem & { image?: string })[]>([
-    {
-      id: 'tea-02',
-      name: '丛味百年·老枞水仙',
-      price: 980,
-      quantity: 1,
-      image: '/assets/aistudio/IMG_6489_3dbe7626.JPG',
-    },
-  ]);
+  const [cartItems, setCartItems] = useState<(CartItem & { image?: string })[]>(
+    initialPersisted.cartItems
+  );
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [recentOrdersCount, setRecentOrdersCount] = useState(2);
 
-  // Consignment List State (user can add to it)
-  const [consignments, setConsignments] = useState<ConsignmentItem[]>(CONSIGNMENT_ITEMS);
+  // Consignment List State
+  const [consignments, setConsignments] = useState<ConsignmentItem[]>(
+    initialPersisted.consignments
+  );
 
   // Bookings State
-  const [activeBookings, setActiveBookings] = useState<
-    {
-      id: string;
-      roomName: string;
-      date: string;
-      timeSlot: string;
-      guests: number;
-      sommelier: string;
-      pairedTea: string;
-      finalPrice: number;
-    }[]
-  >([
-    {
-      id: 'YUN-SEAT-892104',
-      roomName: '「月藏」THE MOON\'S SILENT RETREAT',
-      date: '2026-11-08',
-      timeSlot: '午席 (14:00 - 17:00)',
-      guests: 2,
-      sommelier: '苏婉',
-      pairedTea: '荒野头春白毫银针',
-      finalPrice: 612,
-    },
-  ]);
+  const [activeBookings, setActiveBookings] = useState<BookingInvitationData[]>(
+    initialPersisted.activeBookings
+  );
+
+  // User Orders State
+  const [userOrders, setUserOrders] = useState<UserOrderRecord[]>(initialPersisted.userOrders);
+
+  // Salon Courtesy & Mood Memo State
+  const [moodMemoBooking, setMoodMemoBooking] = useState<BookingInvitationData | null>(null);
+  const [isMoodMemoOpen, setIsMoodMemoOpen] = useState(false);
+  const [savedMoodMemo, setSavedMoodMemo] = useState<CourtesyMoodMemo | null>(
+    initialPersisted.savedMoodMemo
+  );
+
+  // Preselected Tea for Salon Reservation (Closed Loop from Tea Profile Dossier / Terroir Explorer / Brewing Guide)
+  const [preselectedSalonTea, setPreselectedSalonTea] = useState<string | null>(
+    initialPersisted.preselectedSalonTea
+  );
+
+  // Persisted Custom Palate Tags (Closed Loop between TeaProfileDossierModal & MemberView 5D Radar)
+  const [customPalateTags, setCustomPalateTags] = useState<string[] | null>(
+    initialPersisted.customPalateTags ?? null
+  );
 
   // Reservation Calendar Selected Date State
   const [selectedReservationDate, setSelectedReservationDate] = useState<string>('2026-11-08');
@@ -100,9 +146,8 @@ export default function App() {
   const [activeNotification, setActiveNotification] = useState<NotificationData | null>(null);
   const [invitationBooking, setInvitationBooking] = useState<BookingInvitationData | null>(null);
   const [isInvitationOpen, setIsInvitationOpen] = useState(false);
-
-  // User Orders State (initialized with authentic archival records)
-  const [userOrders, setUserOrders] = useState<UserOrderRecord[]>(INITIAL_USER_ORDERS);
+  const [posterBooking, setPosterBooking] = useState<BookingInvitationData | null>(null);
+  const [isPosterOpen, setIsPosterOpen] = useState(false);
 
   // Resume Modal State
   const [resumeModalState, setResumeModalState] = useState<{
@@ -113,6 +158,207 @@ export default function App() {
     initialTab: 'orders',
   });
 
+  // Tea Character Dossier Modal State
+  const [isTeaProfileOpen, setIsTeaProfileOpen] = useState(false);
+
+  // Automatically persist state changes to localStorage
+  useEffect(() => {
+    savePersistedAppState({
+      userTier,
+      leafPoints,
+      chaTokens,
+      hasCheckedInToday,
+      cartItems,
+      consignments,
+      activeBookings,
+      userOrders,
+      savedMoodMemo,
+      preselectedSalonTea,
+      customPalateTags,
+    });
+  }, [
+    userTier,
+    leafPoints,
+    chaTokens,
+    hasCheckedInToday,
+    cartItems,
+    consignments,
+    activeBookings,
+    userOrders,
+    savedMoodMemo,
+    preselectedSalonTea,
+    customPalateTags,
+  ]);
+
+  // Global ESC key support to close topmost active modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (isPosterOpen) setIsPosterOpen(false);
+      else if (isInvitationOpen) setIsInvitationOpen(false);
+      else if (isMoodMemoOpen) setIsMoodMemoOpen(false);
+      else if (isTeaProfileOpen) setIsTeaProfileOpen(false);
+      else if (resumeModalState.isOpen)
+        setResumeModalState((prev) => ({ ...prev, isOpen: false }));
+      else if (reservationRoom) setReservationRoom(null);
+      else if (consignModalState.isOpen)
+        setConsignModalState({ isOpen: false, item: null, mode: 'view' });
+      else if (isPointsRedeemOpen) setIsPointsRedeemOpen(false);
+      else if (isDailyRitualOpen) setIsDailyRitualOpen(false);
+      else if (selectedWisdom) setSelectedWisdom(null);
+      else if (selectedProduct) setSelectedProduct(null);
+      else if (isCartOpen) setIsCartOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isPosterOpen,
+    isInvitationOpen,
+    isMoodMemoOpen,
+    isTeaProfileOpen,
+    resumeModalState.isOpen,
+    reservationRoom,
+    consignModalState.isOpen,
+    isPointsRedeemOpen,
+    isDailyRitualOpen,
+    selectedWisdom,
+    selectedProduct,
+    isCartOpen,
+  ]);
+
+  // Unified helper to award leafPoints and automatically promote userTier if crossing threshold
+  const awardLeafPointsWithTierCheck = (earnedPoints: number) => {
+    if (earnedPoints <= 0) return;
+    const nextTotal = leafPoints + earnedPoints;
+    setLeafPoints(nextTotal);
+    const tierCheck = resolveUpgradedTier(userTier, nextTotal);
+    if (tierCheck.upgraded) {
+      setUserTier(tierCheck.nextTier);
+    }
+  };
+
+  const handleResetDemoState = () => {
+    const fresh = resetPersistedAppState();
+    setUserTier(fresh.userTier);
+    setLeafPoints(fresh.leafPoints);
+    setChaTokens(fresh.chaTokens);
+    setHasCheckedInToday(fresh.hasCheckedInToday);
+    setCartItems(fresh.cartItems);
+    setConsignments(fresh.consignments);
+    setActiveBookings(fresh.activeBookings);
+    setUserOrders(fresh.userOrders);
+    setSavedMoodMemo(fresh.savedMoodMemo);
+    setPreselectedSalonTea(fresh.preselectedSalonTea);
+    setCustomPalateTags(fresh.customPalateTags ?? null);
+    setShopFilter({ category: 'all', keyword: '' });
+  };
+
+  // Cross-view Shop Filtering Handler (from Home 4 Pillars, D3 Mountain Terroir & Brewing Guide)
+  const handleFilterShop = (category: ShopCategoryFilter, keyword: string) => {
+    setShopFilter({ category, keyword });
+    setCurrentTab('shop');
+  };
+
+  // Deep-link from TeaResumeModal Order Item to ProductDetailModal or ConsignmentModal
+  const handleOpenOrderItemDetail = (orderItem: OrderItemRecord) => {
+    // 1. Check if it matches a consignment item
+    const matchedConsign = consignments.find(
+      (c) => c.id === orderItem.id || orderItem.name.includes(c.name)
+    );
+    if (matchedConsign) {
+      setConsignModalState({ isOpen: true, item: matchedConsign, mode: 'view' });
+      return;
+    }
+
+    // 2. Check if it matches a standard catalog product
+    const matchedProduct = PRODUCTS.find(
+      (p) => p.id === orderItem.id || orderItem.name.includes(p.name)
+    );
+    if (matchedProduct) {
+      setSelectedProduct(matchedProduct);
+      return;
+    }
+
+    // 3. Check if it matches a niche tea recommendation
+    const matchedNiche = NICHE_TEA_CATALOG.find(
+      (n) => n.id === orderItem.id || orderItem.name.includes(n.name)
+    );
+    if (matchedNiche) {
+      setSelectedProduct({
+        id: matchedNiche.id,
+        name: matchedNiche.name,
+        enName: matchedNiche.subCategory,
+        category: 'tea',
+        subCategory: matchedNiche.subCategory,
+        price: matchedNiche.price,
+        image: matchedNiche.image,
+        tagline: `${matchedNiche.origin} · ${matchedNiche.sampleSpec}`,
+        description: matchedNiche.matchReason,
+        origin: matchedNiche.origin,
+        specs: [
+          { label: '规格', value: matchedNiche.sampleSpec },
+          { label: '稀缺度', value: matchedNiche.rarity },
+          { label: '契合度', value: `${matchedNiche.matchScore}%` },
+        ],
+        inStock: true,
+      });
+      return;
+    }
+
+    // 4. Fallback: open Shop filtered by item name
+    handleFilterShop('all', orderItem.name.split('（')[0]);
+  };
+
+  const handleTriggerCourtesyPush = (booking?: BookingInvitationData) => {
+    const targetList = booking ? [booking] : activeBookings;
+    const courtesy = evaluateImminentBookingCourtesy(targetList, new Date(), true);
+    if (courtesy.booking) {
+      setInvitationBooking(courtesy.booking);
+      setActiveNotification({
+        id: `courtesy-24h-${Date.now()}`,
+        title: courtesy.notificationTitle,
+        message: courtesy.notificationMessage,
+        timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        roomName: courtesy.booking.roomName,
+        date: courtesy.booking.date,
+        timeSlot: courtesy.booking.timeSlot,
+        kind: 'courtesy-24h',
+        booking: courtesy.booking,
+      });
+    }
+  };
+
+  const handleOpenMoodMemo = (booking?: BookingInvitationData) => {
+    const target = booking || activeBookings[0] || null;
+    if (target) {
+      setMoodMemoBooking(target);
+      setIsMoodMemoOpen(true);
+      setActiveNotification(null);
+    }
+  };
+
+  // Automatic 24-hour approaching reservation check on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const check = evaluateImminentBookingCourtesy(activeBookings, new Date(), true);
+      if (check.isImminent && check.booking) {
+        setInvitationBooking(check.booking);
+        setActiveNotification({
+          id: `courtesy-auto-${check.booking.id}`,
+          title: check.notificationTitle,
+          message: check.notificationMessage,
+          timestamp: '临席提醒',
+          roomName: check.booking.roomName,
+          date: check.booking.date,
+          timeSlot: check.booking.timeSlot,
+          kind: 'courtesy-24h',
+          booking: check.booking,
+        });
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Cart Handlers
   const handleAddToCart = (item: TeaItem, quantity: number) => {
     setCartItems((prev) => {
@@ -120,8 +366,62 @@ export default function App() {
       if (existing) {
         return prev.map((i) => (i.id === item.id ? { ...i, quantity: i.quantity + quantity } : i));
       }
-      return [...prev, { id: item.id, name: item.name, price: item.price, quantity, image: item.image }];
+      return [
+        ...prev,
+        { id: item.id, name: item.name, price: item.price, quantity, image: item.image },
+      ];
     });
+  };
+
+  const handleReorderItems = (items: OrderItemRecord[]) => {
+    setCartItems((prev) => {
+      const next = [...prev];
+      items.forEach((item) => {
+        if (item.price <= 0) return;
+        const existingIdx = next.findIndex((i) => i.id === item.id);
+        if (existingIdx >= 0) {
+          next[existingIdx] = {
+            ...next[existingIdx],
+            quantity: next[existingIdx].quantity + item.quantity,
+          };
+        } else {
+          next.push({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image,
+          });
+        }
+      });
+      return next;
+    });
+    setIsCartOpen(true);
+  };
+
+  const handleSaveOrderReview = (
+    orderId: string,
+    reviewNote: string,
+    reviewTags: string[],
+    syncToTeaProfile = true
+  ) => {
+    const nextOrders = updateOrderReview(
+      userOrders,
+      orderId,
+      reviewNote,
+      reviewTags,
+      syncToTeaProfile
+    );
+    setUserOrders(nextOrders);
+
+    const nextPalateTags = syncOrderReviewToCustomPalateTags(
+      customPalateTags,
+      nextOrders,
+      reviewTags,
+      reviewNote,
+      syncToTeaProfile
+    );
+    setCustomPalateTags(nextPalateTags);
   };
 
   const handleUpdateQuantity = (id: string, delta: number) => {
@@ -162,52 +462,154 @@ export default function App() {
       tokensUsed: orderInfo.tokensUsed,
     });
     setUserOrders((prev) => [newOrder, ...prev]);
-    setRecentOrdersCount((prev) => prev + 1);
+
+    // If any ordered item was a consignment item, mark it sold in consignments list
+    const orderedIds = new Set(orderInfo.orderedItems.map((it) => it.id));
+    setConsignments((prev) =>
+      prev.map((c) =>
+        orderedIds.has(c.id) ? { ...c, status: 'sold', bidsCount: (c.bidsCount ?? 0) + 1 } : c
+      )
+    );
+
     setChaTokens((prev) => Math.max(0, prev - orderInfo.tokensUsed + orderInfo.tokensEarned));
-    const newPoints = leafPoints + orderInfo.pointsEarned;
-    setLeafPoints(newPoints);
-    // Recalculate tier dynamically if needed
-    const updatedTier = calculateTier(newPoints);
-    if (updatedTier.id !== userTier && newPoints >= 20000) {
-      setUserTier('YINSHAN');
-    }
+    awardLeafPointsWithTierCheck(orderInfo.pointsEarned);
   };
 
-  // Consignment Submission Handler
+  // Consignment Submission & Purchase Closed-Loop Handlers
   const handleSubmitConsignment = (newItem: ConsignmentItem) => {
     setConsignments((prev) => [newItem, ...prev]);
-    // Reward tokens for consignment
     setChaTokens((prev) => prev + Math.floor(newItem.currentPrice / 50));
   };
 
-  // Booking Confirmation Handler
+  const handleAddToCartConsignment = (item: ConsignmentItem) => {
+    setCartItems((prev) => {
+      const existing = prev.find((i) => i.id === item.id);
+      if (existing) return prev;
+      return [
+        ...prev,
+        {
+          id: item.id,
+          name: `${item.name}（鉴藏孤品）`,
+          price: item.currentPrice,
+          quantity: 1,
+          image: item.image,
+        },
+      ];
+    });
+  };
+
+  const handleDirectAcquireConsignment = (item: ConsignmentItem) => {
+    const discountedPrice = calculateDiscountedPrice(item.currentPrice, userTier);
+    const pointsEarned = calculateEarnedPoints(discountedPrice, userTier);
+    const tokensEarned = calculateTokenReward(discountedPrice, userTier);
+
+    const newOrder = createConsignmentPurchaseOrderRecord({
+      id: item.id,
+      name: item.name,
+      currentPrice: item.currentPrice,
+      certificateNo: item.certificateNo,
+      image: item.image,
+      discountedPrice,
+      pointsEarned,
+      tokensEarned,
+    });
+
+    setUserOrders((prev) => [newOrder, ...prev]);
+    setConsignments((prev) =>
+      prev.map((c) =>
+        c.id === item.id ? { ...c, status: 'sold', bidsCount: (c.bidsCount ?? 0) + 1 } : c
+      )
+    );
+    setConsignModalState((prev) =>
+      prev.item && prev.item.id === item.id
+        ? {
+            ...prev,
+            item: {
+              ...prev.item,
+              status: 'sold',
+              bidsCount: (prev.item.bidsCount ?? 0) + 1,
+            },
+          }
+        : prev
+    );
+    awardLeafPointsWithTierCheck(pointsEarned);
+    setChaTokens((prev) => prev + tokensEarned);
+  };
+
+  // Booking Confirmation & Cancellation Closed-Loop Handlers
   const handleConfirmBooking = (booking: BookingInvitationData) => {
     setActiveBookings((prev) => [booking, ...prev]);
-    setLeafPoints((prev) => prev + Math.floor((booking.finalPrice || 0) * 1.5));
-    // Trigger simulated WeChat / iOS push notification
+    awardLeafPointsWithTierCheck(Math.floor((booking.finalPrice || 0) * 1.5));
+    setPreselectedSalonTea(null);
     setActiveNotification({
       id: booking.id,
       title: '春城嘉叶 · 雅席钦定通知',
-      message: `您已成功预留「${booking.roomName}」茶席`,
-      timestamp: new Date().toLocaleTimeString(),
+      message: `您已成功预留「${booking.roomName}」茶席（配茶：${booking.pairedTea}）`,
+      timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
       roomName: booking.roomName,
       date: booking.date,
       timeSlot: booking.timeSlot,
+      booking,
     });
     setInvitationBooking(booking);
   };
 
-  // Points Redeem Handler
+  const handleCancelBooking = (bookingId: string) => {
+    setActiveBookings((prev) => prev.filter((b) => b.id !== bookingId));
+  };
+
+  // Preselect Salon Tea Handler (Closed Loop from Tea Profile Dossier, Terroir Explorer, ProductDetailModal & BrewingGuideModal)
+  const handleSelectSalonTeaForReservation = (teaName: string, openModalImmediately = true) => {
+    setPreselectedSalonTea(teaName);
+    setCurrentTab('room');
+    if (openModalImmediately) {
+      setReservationRoom(TEA_ROOMS[0]);
+    }
+    setActiveNotification({
+      id: `salon-tea-${Date.now()}`,
+      title: '春城嘉叶 · 试饮茗茶已备妥',
+      message: `已为您在私享茶室锁定「${teaName}」，可直接预留雅席`,
+      timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      roomName: TEA_ROOMS[0].name,
+      date: selectedReservationDate,
+      timeSlot: '午席 (14:00 - 17:00)',
+    });
+  };
+
+  // Quick Reserve Featured Room from HomeView
+  const handleQuickReserveRoom = (room: TeaRoom) => {
+    setCurrentTab('room');
+    setReservationRoom(room);
+  };
+
+  // Points Redeem Closed-Loop Handler (Creates verifiable redemption order in userOrders)
   const handleRedeemPoints = (item: PointsItem, costPoints: number) => {
     setLeafPoints((prev) => Math.max(0, prev - costPoints));
+    setChaTokens((prev) => prev + 1);
+    const redeemOrder = createPointsRedeemOrderRecord(item);
+    setUserOrders((prev) => [redeemOrder, ...prev]);
   };
 
   // Daily Ritual Checkin Handler
   const handleCheckInSuccess = (earnedPoints: number, earnedTokens: number) => {
     setHasCheckedInToday(true);
-    setLeafPoints((prev) => prev + earnedPoints);
+    awardLeafPointsWithTierCheck(earnedPoints);
     setChaTokens((prev) => prev + earnedTokens);
   };
+
+  const userOwnedConsignments = consignments.filter((c) => c.sellerName === '当前会员');
+
+  // Compute live 5D Personal Tea Character Radar from orders, tasting reviews & persisted custom palate tags
+  const aggregatedReviews = extractAggregatedOrderReviews(userOrders);
+  const activePalateTags =
+    customPalateTags && customPalateTags.length > 0
+      ? customPalateTags
+      : aggregatedReviews.reviewTags;
+  const liveTeaProfile = generateCuratedTeaProfile(
+    userOrders.flatMap((o) => o.items),
+    aggregatedReviews.reviewNotes,
+    activePalateTags
+  );
 
   return (
     <WechatShell activeTab={currentTab}>
@@ -216,9 +618,16 @@ export default function App() {
         notification={activeNotification}
         onClose={() => setActiveNotification(null)}
         onClick={() => {
-          setIsInvitationOpen(true);
+          if (activeNotification?.booking) {
+            setInvitationBooking(activeNotification.booking);
+            setIsInvitationOpen(true);
+          } else if (activeBookings[0]) {
+            setInvitationBooking(activeBookings[0]);
+            setIsInvitationOpen(true);
+          }
           setActiveNotification(null);
         }}
+        onOpenMoodMemo={(b) => handleOpenMoodMemo(b)}
       />
 
       {/* Sticky Mini Program Header */}
@@ -236,6 +645,9 @@ export default function App() {
             onOpenProduct={(item) => setSelectedProduct(item)}
             onOpenRitual={() => setIsDailyRitualOpen(true)}
             onOpenWisdom={(item) => setSelectedWisdom(item)}
+            onReserveTeaInSalon={(teaName) => handleSelectSalonTeaForReservation(teaName, true)}
+            onQuickReserveRoom={handleQuickReserveRoom}
+            onFilterShop={handleFilterShop}
             userTier={userTier}
           />
         )}
@@ -245,14 +657,19 @@ export default function App() {
             onOpenProduct={(item) => setSelectedProduct(item)}
             onAddToCart={handleAddToCart}
             userTier={userTier}
+            initialCategory={shopFilter.category}
+            initialSearchQuery={shopFilter.keyword}
+            onGoToHomeTerroir={() => setCurrentTab('home')}
           />
         )}
 
         {currentTab === 'consign' && (
           <ConsignView
+            consignments={consignments}
             onOpenConsignmentModal={(item, mode) =>
               setConsignModalState({ isOpen: true, item, mode })
             }
+            onGoToShop={() => setCurrentTab('shop')}
             userTier={userTier}
           />
         )}
@@ -263,10 +680,20 @@ export default function App() {
             userTier={userTier}
             selectedDate={selectedReservationDate}
             onSelectDate={setSelectedReservationDate}
+            preselectedTea={preselectedSalonTea}
+            onClearPreselectedTea={() => setPreselectedSalonTea(null)}
             onOpenInvitation={(b) => {
               setInvitationBooking(b);
               setIsInvitationOpen(true);
             }}
+            onOpenPosterModal={(b) => {
+              setPosterBooking(b);
+              setIsPosterOpen(true);
+            }}
+            onOpenMoodMemo={(b) => handleOpenMoodMemo(b)}
+            onTriggerCourtesyPush={(b) => handleTriggerCourtesyPush(b)}
+            onCancelBooking={handleCancelBooking}
+            onGoToHomeTerroir={() => setCurrentTab('home')}
             activeBookings={activeBookings}
           />
         )}
@@ -282,10 +709,27 @@ export default function App() {
             onOpenConsignmentSubmit={() =>
               setConsignModalState({ isOpen: true, item: null, mode: 'submit' })
             }
-            recentOrdersCount={recentOrdersCount}
+            recentOrdersCount={userOrders.length}
             activeBookingsCount={activeBookings.length}
+            activeBookings={activeBookings}
+            userConsignmentsCount={userOwnedConsignments.length}
             onOpenSalonReservation={() => setCurrentTab('room')}
             onOpenResume={(tab) => setResumeModalState({ isOpen: true, initialTab: tab })}
+            onOpenTeaProfile={() => setIsTeaProfileOpen(true)}
+            onOpenInvitation={(b) => {
+              setInvitationBooking(b);
+              setIsInvitationOpen(true);
+            }}
+            onOpenPosterModal={(b) => {
+              setPosterBooking(b);
+              setIsPosterOpen(true);
+            }}
+            onOpenMoodMemo={(b) => handleOpenMoodMemo(b)}
+            onTriggerCourtesyPush={(b) => handleTriggerCourtesyPush(b)}
+            savedMemo={savedMoodMemo}
+            onResetDemoState={handleResetDemoState}
+            liveCharacterTitle={liveTeaProfile.characterTitle}
+            liveRadarScores={liveTeaProfile.radar}
           />
         )}
       </main>
@@ -298,6 +742,7 @@ export default function App() {
         item={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={handleAddToCart}
+        onReserveTeaInSalon={(teaName) => handleSelectSalonTeaForReservation(teaName, true)}
         userTier={userTier}
       />
 
@@ -311,6 +756,9 @@ export default function App() {
         userTier={userTier}
         availableTokens={chaTokens}
         onCheckoutSuccess={handleCheckoutSuccess}
+        onOpenResumeOrders={() => setResumeModalState({ isOpen: true, initialTab: 'orders' })}
+        onGoToShop={() => setCurrentTab('shop')}
+        onGoToConsign={() => setCurrentTab('consign')}
       />
 
       <ConsignmentModal
@@ -320,6 +768,9 @@ export default function App() {
         mode={consignModalState.mode}
         userTier={userTier}
         onSubmitConsignment={handleSubmitConsignment}
+        onAddToCartConsignment={handleAddToCartConsignment}
+        onDirectAcquireConsignment={handleDirectAcquireConsignment}
+        onOpenResumeOrders={() => setResumeModalState({ isOpen: true, initialTab: 'orders' })}
       />
 
       <ReservationModal
@@ -328,9 +779,14 @@ export default function App() {
         room={reservationRoom}
         userTier={userTier}
         initialDate={selectedReservationDate}
+        preselectedTea={preselectedSalonTea}
         onOpenInvitation={(b) => {
           setInvitationBooking(b);
           setIsInvitationOpen(true);
+        }}
+        onOpenPosterModal={(b) => {
+          setPosterBooking(b);
+          setIsPosterOpen(true);
         }}
         onConfirmBooking={handleConfirmBooking}
       />
@@ -341,6 +797,7 @@ export default function App() {
         leafPoints={leafPoints}
         chaTokens={chaTokens}
         onRedeem={handleRedeemPoints}
+        onOpenResumeOrders={() => setResumeModalState({ isOpen: true, initialTab: 'orders' })}
       />
 
       <DailyTeaRitual
@@ -353,9 +810,13 @@ export default function App() {
       <BrewingGuideModal
         item={selectedWisdom}
         onClose={() => setSelectedWisdom(null)}
-        onExploreProducts={() => {
+        onExploreProducts={(category = 'all', keyword = '') => {
           setSelectedWisdom(null);
-          setCurrentTab('shop');
+          handleFilterShop(category, keyword);
+        }}
+        onReserveSalonWithTea={(teaName) => {
+          setSelectedWisdom(null);
+          handleSelectSalonTeaForReservation(teaName, true);
         }}
       />
 
@@ -364,6 +825,11 @@ export default function App() {
         booking={invitationBooking}
         isOpen={isInvitationOpen}
         onClose={() => setIsInvitationOpen(false)}
+        onOpenPosterModal={(b) => {
+          setIsInvitationOpen(false);
+          setPosterBooking(b);
+          setIsPosterOpen(true);
+        }}
       />
 
       {/* Tea Resume Archive Modal (Orders, Salon Bookings, and Consignment Heritage) */}
@@ -373,11 +839,18 @@ export default function App() {
         initialTab={resumeModalState.initialTab}
         orders={userOrders}
         bookings={activeBookings}
-        consignments={consignments.filter((c) => c.sellerName === '当前会员')}
+        consignments={userOwnedConsignments}
+        customPalateTags={customPalateTags}
         onOpenInvitation={(b) => {
           setInvitationBooking(b);
           setIsInvitationOpen(true);
         }}
+        onOpenPosterModal={(b) => {
+          setPosterBooking(b);
+          setIsPosterOpen(true);
+        }}
+        onOpenMoodMemo={(b) => handleOpenMoodMemo(b)}
+        onCancelBooking={handleCancelBooking}
         onOpenConsignmentDetail={(item) => {
           setConsignModalState({ isOpen: true, item, mode: 'view' });
         }}
@@ -386,7 +859,40 @@ export default function App() {
         }}
         onGoToRooms={() => setCurrentTab('room')}
         onGoToShop={() => setCurrentTab('shop')}
+        onSaveOrderReview={handleSaveOrderReview}
+        onReorderItems={handleReorderItems}
+        onOpenOrderItemDetail={handleOpenOrderItemDetail}
+        onOpenTeaProfile={() => setIsTeaProfileOpen(true)}
+      />
+
+      <TeaProfileDossierModal
+        isOpen={isTeaProfileOpen}
+        onClose={() => setIsTeaProfileOpen(false)}
+        userOrders={userOrders}
+        customPalateTags={customPalateTags}
+        onUpdateCustomPalateTags={(tags) => setCustomPalateTags(tags)}
+        onAddToCart={handleAddToCart}
+        onSelectSalonTea={(teaName) => handleSelectSalonTeaForReservation(teaName, true)}
+        userName="林清羽"
+        userTierTitle={TIER_CONFIGS[userTier].name}
+      />
+
+      {/* AI Tea Salon Invitation WeChat Poster Modal */}
+      <SalonInvitationPosterModal
+        isOpen={isPosterOpen}
+        onClose={() => setIsPosterOpen(false)}
+        booking={posterBooking}
+      />
+
+      {/* Salon Courtesy Pre-Arrival Mood Memo Modal */}
+      <CourtesyMoodMemoModal
+        isOpen={isMoodMemoOpen}
+        onClose={() => setIsMoodMemoOpen(false)}
+        booking={moodMemoBooking}
+        existingMemo={savedMoodMemo}
+        onSaveMemo={(memo) => setSavedMoodMemo(memo)}
       />
     </WechatShell>
   );
 }
+

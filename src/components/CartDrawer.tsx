@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
-import { X, Trash2, Coins, ArrowRight, CheckCircle2, MapPin } from 'lucide-react';
+import {
+  X,
+  Trash2,
+  Coins,
+  ArrowRight,
+  CheckCircle2,
+  MapPin,
+  FileCheck2,
+} from 'lucide-react';
 import { CartItem, MemberTierLevel, calculateCartSummary, TIER_CONFIGS } from '../utils/teaLogic';
 import { zenAudio } from '../utils/audioZen';
+import { OrientalEmptyState } from './OrientalEmptyState';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -20,7 +29,12 @@ interface CartDrawerProps {
     itemCount: number;
     orderedItems: (CartItem & { image?: string })[];
   }) => void;
+  onOpenResumeOrders?: () => void;
+  onGoToShop?: () => void;
+  onGoToConsign?: () => void;
 }
+
+const FALLBACK_CART_IMG = '/assets/aistudio/IMG_6489_3dbe7626.JPG';
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
@@ -32,10 +46,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   userTier,
   availableTokens,
   onCheckoutSuccess,
+  onOpenResumeOrders,
+  onGoToShop,
+  onGoToConsign,
 }) => {
   const [tokensToUse, setTokensToUse] = useState(0);
   const [address, setAddress] = useState('深圳市南山区华侨城创意文化园 春城嘉叶茶舍 7号席');
   const [isOrdered, setIsOrdered] = useState(false);
+  const [lastEarnedSummary, setLastEarnedSummary] = useState<{
+    points: number;
+    tokens: number;
+  }>({ points: 0, tokens: 0 });
 
   if (!isOpen) return null;
 
@@ -45,6 +66,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const handleCheckout = () => {
     if (cartItems.length === 0) return;
     zenAudio.playZenChime();
+    setLastEarnedSummary({
+      points: summary.earnedPoints,
+      tokens: summary.earnedTokens,
+    });
     setIsOrdered(true);
     onCheckoutSuccess({
       total: summary.finalTotal,
@@ -54,16 +79,23 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       itemCount: cartItems.reduce((acc, i) => acc + i.quantity, 0),
       orderedItems: [...cartItems],
     });
-    setTimeout(() => {
-      setIsOrdered(false);
-      onClearCart();
-      onClose();
-    }, 1800);
+    onClearCart();
+  };
+
+  const handleCloseDrawer = () => {
+    setIsOrdered(false);
+    onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
-      <div className="bg-[#FAF8F5] w-full max-w-md h-full flex flex-col shadow-2xl border-l border-[#E5DFCE] relative animate-in slide-in-from-right duration-300">
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200"
+      onClick={handleCloseDrawer}
+    >
+      <div
+        className="bg-[#FAF8F5] w-full max-w-md h-full flex flex-col shadow-2xl border-l border-[#E5DFCE] relative animate-in slide-in-from-right duration-300"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-5 py-4 border-b border-[#ECE7DD] flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -75,7 +107,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </span>
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={handleCloseDrawer}
             className="p-1.5 rounded-full hover:bg-black/5 text-[#5A544A]"
             aria-label="关闭购物车"
           >
@@ -84,34 +117,71 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         </div>
 
         {isOrdered ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-[#EBF3ED] text-[#2F6740] flex items-center justify-center mx-auto mb-2">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-[#EBF3ED] text-[#2F6740] flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="font-oriental-serif text-xl font-bold text-[#1E2320]">
-              结席完成 · 敬呈雅物
-            </h3>
-            <p className="text-xs text-[#6F695E] leading-relaxed max-w-xs">
-              我们将以传统棉麻与手工木匣精心妥帖包扎，附带防伪追溯证书顺丰专呈。
-            </p>
-            <div className="p-3 bg-[#F2EFE8] rounded-xl text-xs text-[#8F733E] font-mono mt-2">
-              获得叶值积分 +{summary.earnedPoints} · 赠茗元 +{summary.earnedTokens}
+            <div className="space-y-1">
+              <h3 className="font-oriental-serif text-xl font-bold text-[#1E2320]">
+                结席完成 · 敬呈雅物
+              </h3>
+              <p className="text-xs text-[#6F695E] leading-relaxed max-w-xs">
+                我们将以传统棉麻与手工木匣精心妥帖包扎，附带防伪追溯证书顺丰专呈。
+              </p>
+            </div>
+            <div className="p-3 bg-[#F2EFE8] rounded-xl text-xs text-[#8F733E] font-mono border border-[#E3DAC8]">
+              获得叶值积分 +{lastEarnedSummary.points} · 赠茗元 +{lastEarnedSummary.tokens}
+            </div>
+
+            <div className="w-full space-y-2 pt-2">
+              {onOpenResumeOrders && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOrdered(false);
+                    onClose();
+                    onOpenResumeOrders();
+                  }}
+                  className="w-full h-11 rounded-xl bg-[#232B26] hover:bg-black text-white font-oriental-serif text-xs font-bold tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all"
+                >
+                  <FileCheck2 className="w-4 h-4 text-[#D8C496]" />
+                  <span>查看茶事履历订单 · 撰写品茗评鉴</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleCloseDrawer}
+                className="w-full h-10 rounded-xl bg-transparent border border-[#DDD4C2] text-[#5B5447] font-oriental-serif text-xs hover:bg-[#EFEAE0]"
+              >
+                继续品茗游览
+              </button>
             </div>
           </div>
         ) : cartItems.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-[#8C867B] space-y-3">
-            <div className="w-14 h-14 rounded-full bg-[#EFECE3] flex items-center justify-center font-oriental-serif text-lg text-[#A09A8D]">
-              空
-            </div>
-            <p className="text-xs font-light tracking-wide">
-              茶囊尚空，寻觅心仪茶席之物
-            </p>
-            <button
-              onClick={onClose}
-              className="text-xs text-[#242A27] font-medium underline underline-offset-4"
-            >
-              浏览器物与茗茶
-            </button>
+          <div className="flex-1 flex flex-col justify-center p-6">
+            <OrientalEmptyState
+              variant="cart"
+              onPrimaryAction={() => {
+                onClose();
+                onGoToShop?.();
+              }}
+              onSecondaryAction={
+                onGoToConsign
+                  ? () => {
+                      onClose();
+                      onGoToConsign();
+                    }
+                  : undefined
+              }
+              onSmartRecommendationClick={(rec) => {
+                onClose();
+                if (rec.targetTab === 'consign' && onGoToConsign) {
+                  onGoToConsign();
+                } else {
+                  onGoToShop?.();
+                }
+              }}
+            />
           </div>
         ) : (
           <>
@@ -127,6 +197,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       src={item.image}
                       alt={item.name}
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.src = FALLBACK_CART_IMG;
+                      }}
                       className="w-16 h-16 rounded-xl object-cover bg-[#171A19] shrink-0"
                     />
                   )}
@@ -141,6 +214,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center border border-[#DCD5C4] rounded-lg overflow-hidden bg-[#FAF8F5]">
                         <button
+                          type="button"
                           onClick={() => onUpdateQuantity(item.id, -1)}
                           className="w-6 h-6 flex items-center justify-center hover:bg-[#EBE6DC] text-xs"
                         >
@@ -150,6 +224,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           {item.quantity}
                         </span>
                         <button
+                          type="button"
                           onClick={() => onUpdateQuantity(item.id, 1)}
                           className="w-6 h-6 flex items-center justify-center hover:bg-[#EBE6DC] text-xs"
                         >
@@ -158,6 +233,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       </div>
 
                       <button
+                        type="button"
                         onClick={() => onRemoveItem(item.id)}
                         className="text-[#969083] hover:text-[#B23A2B] p-1 transition-colors"
                         title="移出"
@@ -225,7 +301,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               {summary.memberDiscount > 0 && (
                 <div className="flex justify-between text-[#8F733E]">
-                  <span>{tierConfig.name}身份礼遇 ({Math.round(tierConfig.discountRate * 100)}% 折扣)</span>
+                  <span>
+                    {tierConfig.name}身份礼遇 ({Math.round(tierConfig.discountRate * 100)}% 折扣)
+                  </span>
                   <span className="font-mono">-¥{summary.memberDiscount.toLocaleString()}</span>
                 </div>
               )}
@@ -246,6 +324,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </div>
 
                 <button
+                  type="button"
                   onClick={handleCheckout}
                   className="px-6 h-11 rounded-xl bg-[#232B26] hover:bg-[#181E1A] text-white font-oriental-serif text-xs font-semibold tracking-widest flex items-center gap-2 transition-all active:scale-[0.98] shadow-sm"
                 >

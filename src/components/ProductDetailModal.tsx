@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Droplets, Clock, Flame, Award, ShieldCheck, Check } from 'lucide-react';
+import {
+  X,
+  Sparkles,
+  Droplets,
+  Clock,
+  Flame,
+  Award,
+  ShieldCheck,
+  Check,
+  Calendar,
+} from 'lucide-react';
 import { TeaItem } from '../data/mockData';
 import { MemberTierLevel, calculateDiscountedPrice } from '../utils/teaLogic';
 import { zenAudio } from '../utils/audioZen';
@@ -8,13 +18,17 @@ interface ProductDetailModalProps {
   item: TeaItem | null;
   onClose: () => void;
   onAddToCart: (item: TeaItem, quantity: number) => void;
+  onReserveTeaInSalon?: (teaName: string) => void;
   userTier: MemberTierLevel;
 }
+
+const FALLBACK_DETAIL_IMG = '/assets/aistudio/IMG_6489_3dbe7626.JPG';
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   item,
   onClose,
   onAddToCart,
+  onReserveTeaInSalon,
   userTier,
 }) => {
   const [quantity, setQuantity] = useState(1);
@@ -24,6 +38,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   const discountedPrice = calculateDiscountedPrice(item.price, userTier);
   const hasDiscount = discountedPrice < item.price;
+  const isTastableTea = item.category === 'tea' || item.category === 'yao';
 
   const handleAdd = () => {
     onAddToCart(item, quantity);
@@ -36,10 +51,17 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-[#FAF8F5] w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl border border-[#E4DEC9] flex flex-col relative">
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#FAF8F5] w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto no-scrollbar shadow-2xl border border-[#E4DEC9] flex flex-col relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Floating Close Button */}
         <button
+          type="button"
           onClick={onClose}
           className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
           aria-label="关闭详情"
@@ -47,12 +69,15 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           <X className="w-4 h-4" />
         </button>
 
-        {/* Hero Visual Asset from User Reference */}
-        <div className="relative aspect-4/3 w-full bg-[#181C1A] overflow-hidden">
+        {/* Hero Visual Asset */}
+        <div className="relative aspect-4/3 w-full bg-[#181C1A] overflow-hidden shrink-0">
           <img
             src={item.image}
             alt={item.name}
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              e.currentTarget.src = FALLBACK_DETAIL_IMG;
+            }}
             className="w-full h-full object-cover object-center"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#141716]/90 via-transparent to-black/30 pointer-events-none" />
@@ -162,7 +187,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   <Clock className="w-3.5 h-3.5 text-[#8F733E]" />
                   <div>
                     <span className="text-[10px] text-[#938C7F] block">注水出汤节奏</span>
-                    <span className="font-medium text-[#29322D]">{item.brewingGuide.duration} · 可续冲 {item.brewingGuide.pours} 泡</span>
+                    <span className="font-medium text-[#29322D]">
+                      {item.brewingGuide.duration} · 可续冲 {item.brewingGuide.pours} 泡
+                    </span>
                   </div>
                 </div>
               </div>
@@ -186,31 +213,52 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         </div>
 
         {/* Bottom Action Bar */}
-        <div className="sticky bottom-0 bg-[#FAF8F5]/95 backdrop-blur-md p-4 border-t border-[#ECE7DD] flex items-center gap-3">
+        <div className="sticky bottom-0 bg-[#FAF8F5]/95 backdrop-blur-md p-4 border-t border-[#ECE7DD] flex items-center gap-2.5">
           {/* Quantity Selector */}
-          <div className="flex items-center border border-[#DCD5C4] rounded-xl overflow-hidden bg-white">
+          <div className="flex items-center border border-[#DCD5C4] rounded-xl overflow-hidden bg-white shrink-0">
             <button
+              type="button"
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="w-8 h-10 flex items-center justify-center hover:bg-[#F3EFE7] text-sm text-[#4E483F]"
+              className="w-7 h-10 flex items-center justify-center hover:bg-[#F3EFE7] text-sm text-[#4E483F]"
             >
               -
             </button>
-            <span className="w-8 text-center text-xs font-mono font-medium text-[#1E2320]">
+            <span className="w-7 text-center text-xs font-mono font-medium text-[#1E2320]">
               {quantity}
             </span>
             <button
+              type="button"
               onClick={() => setQuantity(quantity + 1)}
-              className="w-8 h-10 flex items-center justify-center hover:bg-[#F3EFE7] text-sm text-[#4E483F]"
+              className="w-7 h-10 flex items-center justify-center hover:bg-[#F3EFE7] text-sm text-[#4E483F]"
             >
               +
             </button>
           </div>
 
+          {/* Direct Salon Tasting Reservation CTA (For Tea & YÁO items) */}
+          {isTastableTea && onReserveTeaInSalon && (
+            <button
+              type="button"
+              onClick={() => {
+                zenAudio.playZenChime();
+                const teaTitle = item.name.split('（')[0];
+                onClose();
+                onReserveTeaInSalon(teaTitle);
+              }}
+              className="px-3 h-10 rounded-xl bg-[#FAF5E8] hover:bg-[#F2E6CC] text-[#8F733E] border border-[#E3D3B2] font-oriental-serif text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all active:scale-[0.98]"
+              title="预约私享茶室试饮此茶"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>茶席试饮</span>
+            </button>
+          )}
+
           {/* Add to Cart CTA */}
           <button
+            type="button"
             onClick={handleAdd}
             disabled={addedNotice}
-            className="flex-1 h-10 rounded-xl bg-[#232B26] hover:bg-[#181E1A] text-[#FAF8F5] font-oriental-serif text-xs font-medium tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm disabled:bg-[#3C5A44]"
+            className="flex-1 h-10 rounded-xl bg-[#232B26] hover:bg-[#181E1A] text-[#FAF8F5] font-oriental-serif text-xs font-medium tracking-widest flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-sm disabled:bg-[#3C5A44]"
           >
             {addedNotice ? (
               <>

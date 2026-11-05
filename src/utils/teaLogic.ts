@@ -74,6 +74,36 @@ export function calculateTier(points: number): TierConfig {
   return TIER_CONFIGS.GUEST;
 }
 
+const TIER_RANK_ORDER: Record<MemberTierLevel, number> = {
+  GUEST: 0,
+  ENTHUSIAST: 1,
+  MASTER: 2,
+  YINSHAN: 3,
+};
+
+/**
+ * Evaluates whether new accumulated leafPoints promote the user to a higher tier.
+ * Never downgrades if the user is manually previewing a higher tier.
+ */
+export function resolveUpgradedTier(
+  currentTier: MemberTierLevel,
+  newPoints: number
+): { nextTier: MemberTierLevel; upgraded: boolean; tierConfig: TierConfig } {
+  const computed = calculateTier(newPoints);
+  if (TIER_RANK_ORDER[computed.id] > TIER_RANK_ORDER[currentTier]) {
+    return {
+      nextTier: computed.id,
+      upgraded: true,
+      tierConfig: computed,
+    };
+  }
+  return {
+    nextTier: currentTier,
+    upgraded: false,
+    tierConfig: TIER_CONFIGS[currentTier],
+  };
+}
+
 /**
  * Compute discounted item price based on member tier
  */

@@ -1,18 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ShieldCheck, Plus, Sparkles, ArrowRight, Eye } from 'lucide-react';
 import { CONSIGNMENT_ITEMS, ConsignmentItem } from '../../data/mockData';
 import { MemberTierLevel, TIER_CONFIGS } from '../../utils/teaLogic';
+import { OrientalEmptyState } from '../OrientalEmptyState';
 
 interface ConsignViewProps {
+  consignments?: ConsignmentItem[];
   onOpenConsignmentModal: (item: ConsignmentItem | null, mode: 'view' | 'submit') => void;
+  onGoToShop?: () => void;
   userTier: MemberTierLevel;
 }
 
+const FALLBACK_CONSIGN_IMG = '/assets/aistudio/IMG_6487_f774f6f1.JPG';
+
 export const ConsignView: React.FC<ConsignViewProps> = ({
+  consignments = CONSIGNMENT_ITEMS,
   onOpenConsignmentModal,
+  onGoToShop,
   userTier,
 }) => {
   const tierConfig = TIER_CONFIGS[userTier];
+  const [selectedCategory, setSelectedCategory] = useState<
+    'all' | 'teapot' | 'tea' | 'antique' | 'incense'
+  >('all');
+
+  const filteredItems = consignments.filter((item) =>
+    selectedCategory === 'all' ? true : item.category === selectedCategory
+  );
 
   return (
     <div className="space-y-5 px-5 pb-12">
@@ -52,13 +66,16 @@ export const ConsignView: React.FC<ConsignViewProps> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#8F733E]"></span>
-            <span>{tierConfig.name}享仅 {Math.round(tierConfig.consignmentFeeRate * 100)}% 极低服务费</span>
+            <span>
+              {tierConfig.name}享仅 {Math.round(tierConfig.consignmentFeeRate * 100)}% 极低服务费
+            </span>
           </div>
         </div>
       </div>
 
       {/* Action CTA to submit consignment */}
       <button
+        type="button"
         onClick={() => onOpenConsignmentModal(null, 'submit')}
         className="w-full h-12 rounded-2xl bg-[#232B26] hover:bg-[#181E1A] text-white font-oriental-serif text-xs font-semibold tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm"
       >
@@ -66,86 +83,151 @@ export const ConsignView: React.FC<ConsignViewProps> = ({
         <span>我要寄售名物 / 老茶变现流转</span>
       </button>
 
+      {/* Category Filter Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
+        {[
+          { id: 'all', label: `全部典藏 (${consignments.length})` },
+          { id: 'teapot', label: '名家手拉壶' },
+          { id: 'tea', label: '干仓年份茶' },
+          { id: 'antique', label: '传世古器物' },
+          { id: 'incense', label: '竹木香器' },
+        ].map((cat) => (
+          <button
+            type="button"
+            key={cat.id}
+            onClick={() =>
+              setSelectedCategory(
+                cat.id as 'all' | 'teapot' | 'tea' | 'antique' | 'incense'
+              )
+            }
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-oriental-serif shrink-0 border transition-all ${
+              selectedCategory === cat.id
+                ? 'bg-[#232B26] text-[#FAF8F5] border-[#232B26] font-bold shadow-2xs'
+                : 'bg-white text-[#665F53] border-[#E5DEC9] hover:border-[#232B26]'
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
+      </div>
+
       {/* Active Consignment Listings */}
-      <div className="space-y-4 pt-1">
+      <div className="space-y-4">
         <div className="flex items-center justify-between text-xs text-[#868073]">
-          <span className="font-mono text-[11px]">当前鉴藏流转专席 ({CONSIGNMENT_ITEMS.length})</span>
+          <span className="font-mono text-[11px]">
+            当前鉴藏流转专席 ({filteredItems.length})
+          </span>
           <span className="text-[10px] text-[#8F733E] flex items-center gap-1">
             <Sparkles className="w-3 h-3" />
-            <span>支持茗元参与认藏</span>
+            <span>支持收入茶囊或直接专席认藏</span>
           </span>
         </div>
 
-        {CONSIGNMENT_ITEMS.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => onOpenConsignmentModal(item, 'view')}
-            className="bg-white rounded-3xl p-4 border border-[#ECE6DB] shadow-xs cursor-pointer group hover:border-[#232B26] transition-all space-y-3"
-          >
-            <div className="flex gap-3.5">
-              <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-[#161B18] shrink-0">
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div
-                  className={`absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full text-[9px] font-mono tracking-widest ${
-                    item.status === 'sold'
-                      ? 'bg-black/70 text-[#C7C2B6]'
-                      : 'bg-[#25382B]/90 text-[#D8E6DC]'
-                  }`}
-                >
-                  {item.status === 'sold' ? '已结藏' : '流转中'}
+        {filteredItems.length === 0 ? (
+          <OrientalEmptyState
+            variant="consign"
+            onPrimaryAction={() => onOpenConsignmentModal(null, 'submit')}
+            onSecondaryAction={() => {
+              if (selectedCategory !== 'all') {
+                setSelectedCategory('all');
+              } else {
+                onGoToShop?.();
+              }
+            }}
+            secondaryActionLabel={
+              selectedCategory !== 'all' ? '查看全部流转中典藏' : '前往茶铺品鉴全系器物'
+            }
+            onSmartRecommendationClick={(rec) => {
+              if (rec.targetTab === 'shop' && onGoToShop) {
+                onGoToShop();
+              } else if (rec.targetCategory === 'teapot' || rec.targetCategory === 'tea') {
+                setSelectedCategory(rec.targetCategory);
+              } else {
+                setSelectedCategory('all');
+              }
+            }}
+          />
+        ) : (
+          filteredItems.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => onOpenConsignmentModal(item, 'view')}
+              className="bg-white rounded-3xl p-4 border border-[#ECE6DB] shadow-xs cursor-pointer group hover:border-[#232B26] transition-all space-y-3"
+            >
+              <div className="flex gap-3.5">
+                <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-[#161B18] shrink-0">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.src = FALLBACK_CONSIGN_IMG;
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div
+                    className={`absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full text-[9px] font-mono tracking-widest ${
+                      item.status === 'sold'
+                        ? 'bg-black/75 text-[#D8C496]'
+                        : 'bg-[#25382B]/90 text-[#D8E6DC]'
+                    }`}
+                  >
+                    {item.status === 'sold' ? '已结藏' : '流转中'}
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] text-[#918B7E] font-mono">
+                      <span>{item.certificateNo}</span>
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-3 h-3" />
+                        <span>{item.views}</span>
+                      </span>
+                    </div>
+                    <h3 className="font-oriental-serif text-sm font-bold text-[#232B26] mt-0.5 line-clamp-1">
+                      {item.name}
+                    </h3>
+                    <p className="text-[11px] text-[#7A7468] font-light mt-0.5 line-clamp-1">
+                      品相：{item.condition}
+                    </p>
+                  </div>
+
+                  <div className="text-[10px] text-[#8F733E] flex items-center justify-between">
+                    <span>
+                      委托人：{item.sellerName} ({item.sellerTier})
+                    </span>
+                    {(item.bidsCount ?? 0) > 0 && (
+                      <span className="font-mono text-[#6E675B]">{item.bidsCount} 次认藏意向</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+              <div className="pt-2 border-t border-[#F2EEE6] flex items-baseline justify-between">
                 <div>
-                  <div className="flex items-center justify-between text-[10px] text-[#918B7E] font-mono">
-                    <span>{item.certificateNo}</span>
-                    <span className="flex items-center gap-1">
-                      <Eye className="w-3 h-3" />
-                      <span>{item.views}</span>
+                  <span className="text-[10px] text-[#8C867B] block">流转席价</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-base font-bold text-[#1E2320]">
+                      ¥{item.currentPrice.toLocaleString()}
+                    </span>
+                    <span className="font-mono text-[11px] text-[#A6A092] line-through">
+                      估价 ¥{item.originalEstimate.toLocaleString()}
                     </span>
                   </div>
-                  <h3 className="font-oriental-serif text-sm font-bold text-[#232B26] mt-0.5 line-clamp-1">
-                    {item.name}
-                  </h3>
-                  <p className="text-[11px] text-[#7A7468] font-light mt-0.5 line-clamp-1">
-                    品相：{item.condition}
-                  </p>
                 </div>
 
-                <div className="text-[10px] text-[#8F733E]">
-                  委托人：{item.sellerName} ({item.sellerTier})
-                </div>
+                <button
+                  type="button"
+                  className="px-3.5 py-1.5 rounded-xl bg-[#F3EFE7] group-hover:bg-[#232B26] group-hover:text-white text-[#29322D] text-xs font-oriental-serif font-medium tracking-wider transition-colors flex items-center gap-1"
+                >
+                  <span>{item.status === 'sold' ? '查阅流转档案' : '查验鉴藏证书 · 认藏'}</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
               </div>
             </div>
-
-            <div className="pt-2 border-t border-[#F2EEE6] flex items-baseline justify-between">
-              <div>
-                <span className="text-[10px] text-[#8C867B] block">流转席价</span>
-                <div className="flex items-baseline gap-2">
-                  <span className="font-mono text-base font-bold text-[#1E2320]">
-                    ¥{item.currentPrice.toLocaleString()}
-                  </span>
-                  <span className="font-mono text-[11px] text-[#A6A092] line-through">
-                    估价 ¥{item.originalEstimate.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                className="px-3.5 py-1.5 rounded-xl bg-[#F3EFE7] hover:bg-[#232B26] hover:text-white text-[#29322D] text-xs font-oriental-serif font-medium tracking-wider transition-colors flex items-center gap-1"
-              >
-                <span>查验鉴藏证书</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );

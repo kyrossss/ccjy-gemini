@@ -4,6 +4,8 @@ import {
   parseSlotTimes,
   formatIcsDateTime,
   generateIcsContent,
+  parseBookingTargetDate,
+  calculateCountdownParts,
   CalendarEventData,
 } from './calendarExport';
 
@@ -56,3 +58,17 @@ test('generateIcsContent produces valid RFC 5545 VCALENDAR string with event and
   assert.ok(ics.includes('BEGIN:VALARM'));
   assert.ok(ics.includes('TRIGGER:-PT2H'));
 });
+
+test('parseBookingTargetDate and calculateCountdownParts accurately compute remaining days, hours, minutes, and seconds', () => {
+  const target = parseBookingTargetDate('2026-11-08', '午席 (14:00 - 17:00)');
+  const now = new Date(2026, 10, 5, 12, 30, 15); // 2026-11-05 12:30:15
+  const parts = calculateCountdownParts(target, now);
+
+  assert.equal(parts.isUpcoming, true);
+  assert.equal(parts.days, 3);
+  assert.equal(parts.hours, 1);
+  assert.equal(parts.minutes, 29);
+  assert.equal(parts.seconds, 45);
+  assert.ok(parts.stageTag.includes('席次预热'));
+});
+

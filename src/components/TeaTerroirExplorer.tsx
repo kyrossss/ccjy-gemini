@@ -1,42 +1,90 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Compass,
   Sparkles,
-  RefreshCw,
   ArrowRight,
   Mountain,
-  Droplets,
   Wind,
   Layers,
-  ChevronRight,
-  Sparkle,
+  GitCompare,
+  RotateCcw,
 } from 'lucide-react';
-import { TEA_REGIONS, TerroirRegion, TerroirSensoryProfile } from '../utils/terroirLogic';
+import {
+  TEA_REGIONS,
+  TerroirRegion,
+  TerroirSensoryProfile,
+  TERROIR_RADAR_AXES,
+  TerroirRadarAxisMeta,
+  TerroirBeltFilter,
+  getRegionThemeMeta,
+  compareTerroirProfiles,
+  resolveRegionSelectionState,
+  mapRegionToCatalogProducts,
+  filterVisibleTerroirRegions,
+} from '../utils/terroirLogic';
+import { PRODUCTS } from '../data/mockData';
+import { D3TerroirRadarChart } from './D3TerroirRadarChart';
+import { OrientalEmptyState } from './OrientalEmptyState';
 import { zenAudio } from '../utils/audioZen';
 
 interface TeaTerroirExplorerProps {
   onOpenProductById?: (productId: string) => void;
   onExploreShop?: () => void;
+  onReserveTeaInSalon?: (teaName: string) => void;
+  onFilterShopByTerroir?: (keyword: string) => void;
 }
 
 export const TeaTerroirExplorer: React.FC<TeaTerroirExplorerProps> = ({
   onOpenProductById,
   onExploreShop,
+  onReserveTeaInSalon,
+  onFilterShopByTerroir,
 }) => {
+  const [terroirBeltFilter, setTerroirBeltFilter] = useState<TerroirBeltFilter>('all');
   const [selectedRegionId, setSelectedRegionId] = useState<string>('wuyi');
+  const [compareRegionId, setCompareRegionId] = useState<string | null>('xihu');
   const [currentProfile, setCurrentProfile] = useState<TerroirSensoryProfile>(
     TEA_REGIONS[0].defaultProfile
   );
+  const [activeAxisKey, setActiveAxisKey] =
+    useState<keyof TerroirSensoryProfile['radarScores']>('mineralBody');
   const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
   const [aiSource, setAiSource] = useState<'gemini-ai' | 'curated' | 'fallback'>('curated');
 
-  const selectedRegion = TEA_REGIONS.find((r) => r.id === selectedRegionId) || TEA_REGIONS[0];
+  const visibleRegions = filterVisibleTerroirRegions(terroirBeltFilter);
+  const isStateModified =
+    terroirBeltFilter !== 'all' ||
+    selectedRegionId !== 'wuyi' ||
+    compareRegionId !== 'xihu' ||
+    activeAxisKey !== 'mineralBody' ||
+    aiSource !== 'curated';
 
-  // Fetch or switch profile when region changes
-  const handleSelectRegion = async (region: TerroirRegion) => {
+  const selectedRegion = TEA_REGIONS.find((r) => r.id === selectedRegionId) || TEA_REGIONS[0];
+  const compareRegion = compareRegionId
+    ? TEA_REGIONS.find((r) => r.id === compareRegionId) || null
+    : null;
+  const compareProfile = compareRegion ? compareRegion.defaultProfile : null;
+
+  // Switch primary terroir region using pure tested state resolver
+  const handleSelectRegion = (region: TerroirRegion) => {
     zenAudio.playZenChime();
-    setSelectedRegionId(region.id);
-    setCurrentProfile(region.defaultProfile);
+    const resolved = resolveRegionSelectionState(region.id, compareRegionId);
+    setSelectedRegionId(resolved.selectedRegion.id);
+    setCurrentProfile(resolved.profile);
+    setActiveAxisKey(resolved.topAxisKey);
+    setCompareRegionId(resolved.nextCompareRegionId);
+    setAiSource('curated');
+  };
+
+  // Reset terroir interactive state back to canonical initial defaults
+  const handleResetTerroirState = () => {
+    zenAudio.playZenChime();
+    const initialResolved = resolveRegionSelectionState('wuyi', 'xihu');
+    setTerroirBeltFilter('all');
+    setSelectedRegionId(initialResolved.selectedRegion.id);
+    setCurrentProfile(initialResolved.profile);
+    setActiveAxisKey(initialResolved.topAxisKey);
+    setCompareRegionId(initialResolved.nextCompareRegionId);
     setAiSource('curated');
   };
 
@@ -69,126 +117,182 @@ export const TeaTerroirExplorer: React.FC<TeaTerroirExplorerProps> = ({
     }
   };
 
-  // Radar Polygon Point calculation (5-axis radar chart)
-  // Axes: 0: 香气高锐度 (top), 1: 山场岩骨韵 (top-right), 2: 喉韵幽长度 (bottom-right), 3: 汤感稠厚度 (bottom-left), 4: 回甘生津度 (top-left)
-  const scores = [
-    currentProfile.radarScores.aroma,
-    currentProfile.radarScores.mineralBody,
-    currentProfile.radarScores.throatDepth,
-    currentProfile.radarScores.mouthfeel,
-    currentProfile.radarScores.sweetness,
-  ];
-
-  const labels = ['香气高锐', '山场骨韵', '喉韵悠长', '汤感稠厚', '回甘生津'];
-  const center = 100;
-  const maxRadius = 70;
-
-  // Convert angles & score ratios to SVG coordinates
-  const getRadarPoint = (index: number, score: number) => {
-    const angle = (index * (360 / 5) - 90) * (Math.PI / 180);
-    const radius = (score / 100) * maxRadius;
-    const x = center + radius * Math.cos(angle);
-    const y = center + radius * Math.sin(angle);
-    return `${x},${y}`;
+  const handleSelectAxis = (axis: TerroirRadarAxisMeta) => {
+    setActiveAxisKey(axis.key);
   };
 
-  const polygonPoints = scores.map((s, idx) => getRadarPoint(idx, s)).join(' ');
+  const comparisonInsight = compareTerroirProfiles(currentProfile, compareProfile);
+  const currentTheme = getRegionThemeMeta(selectedRegion.id);
+  const catalogMapping = mapRegionToCatalogProducts(selectedRegion.id, PRODUCTS);
 
   return (
     <div className="space-y-4 pt-2">
       {/* Section Header */}
-      <div className="flex items-end justify-between px-1">
+      <div className="flex items-end justify-between px-1 gap-2">
         <div>
           <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-widest text-[#8F733E] uppercase font-bold">
             <Compass className="w-3.5 h-3.5" />
-            <span>TERROIR SENSORY RADAR · 寻味茶山</span>
+            <span>MOUNTAIN TERROIR D3 SPECTRUM · 山场风土</span>
           </div>
           <h2 className="font-oriental-serif text-lg font-bold text-[#1F2522] mt-0.5">
-            寻味茶山 · AI 感官香气图谱
+            山场风土 · 茶香感官光谱可视化
           </h2>
           <p className="text-xs text-[#7B7569] font-light mt-0.5">
-            滑动切换名山原野，AI 实时推演风土微气候与三调茶香感官意象。
+            基于 D3.js 极坐标引擎，动态解构武夷岩韵、西湖清芳、乌岽山韵等产区风土感官光谱。
           </p>
         </div>
 
-        <button
-          onClick={handleAiRegenerate}
-          disabled={isLoadingAi}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F2EDE4] hover:bg-[#E7E0D3] text-[#5C5446] text-xs font-oriental-serif transition-colors border border-[#DDD5C5] disabled:opacity-60"
-        >
-          <Sparkles className={`w-3.5 h-3.5 text-[#8F733E] ${isLoadingAi ? 'animate-spin' : ''}`} />
-          <span>{isLoadingAi ? 'AI 推演中...' : 'AI 重构香气'}</span>
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isStateModified && (
+            <button
+              type="button"
+              onClick={handleResetTerroirState}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#FAF8F4] hover:bg-[#EFEAE0] text-[#7A705E] text-xs font-oriental-serif transition-colors border border-[#E5DEC9]"
+              title="重置山场风土视图与筛选状态"
+            >
+              <RotateCcw className="w-3 h-3 text-[#8F733E]" />
+              <span>重置</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleAiRegenerate}
+            disabled={isLoadingAi}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F2EDE4] hover:bg-[#E7E0D3] text-[#5C5446] text-xs font-oriental-serif transition-colors border border-[#DDD5C5] disabled:opacity-60 shrink-0"
+          >
+            <Sparkles className={`w-3.5 h-3.5 text-[#8F733E] ${isLoadingAi ? 'animate-spin' : ''}`} />
+            <span>{isLoadingAi ? 'AI 推演中...' : 'AI 重构光谱'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Tea Mountains Horizontal Slider / Carousel */}
-      <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none -mx-1 px-1">
-        {TEA_REGIONS.map((region) => {
-          const isSelected = region.id === selectedRegionId;
-          return (
-            <button
-              key={region.id}
-              onClick={() => handleSelectRegion(region)}
-              className={`flex-shrink-0 text-left p-3 rounded-2xl border transition-all w-48 relative overflow-hidden ${
-                isSelected
-                  ? 'bg-[#232B26] text-white border-[#232B26] shadow-md scale-[1.01]'
-                  : 'bg-white text-[#2B332E] border-[#E8E2D5] hover:border-[#232B26]/30 hover:bg-[#FAF8F5]'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span
-                  className={`text-[10px] font-mono tracking-wider uppercase font-semibold ${
-                    isSelected ? 'text-[#D8C496]' : 'text-[#8F733E]'
+      {/* Terroir Belt Filter Pills (including Uncharted Belt for Empty State Preview) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+        {[
+          { id: 'all', label: '五大名山全谱' },
+          { id: 'wuyi', label: '闽北·丹霞岩韵' },
+          { id: 'wudong', label: '岭南·乌岽山韵' },
+          { id: 'xihu', label: '江南·西湖清芳' },
+          { id: 'menghai', label: '滇南·布朗霸韵' },
+          { id: 'fuding', label: '闽东·太姥毫韵' },
+          { id: 'uncharted', label: '雪域秘境·待拓' },
+        ].map((belt) => (
+          <button
+            type="button"
+            key={belt.id}
+            onClick={() => {
+              zenAudio.playZenChime();
+              setTerroirBeltFilter(belt.id as TerroirBeltFilter);
+              if (belt.id !== 'all' && belt.id !== 'uncharted') {
+                const targetRegion = TEA_REGIONS.find((r) => r.id === belt.id);
+                if (targetRegion) handleSelectRegion(targetRegion);
+              }
+            }}
+            className={`px-3 py-1 rounded-xl text-[11px] font-oriental-serif whitespace-nowrap shrink-0 border transition-all ${
+              terroirBeltFilter === belt.id
+                ? 'bg-[#8F733E] text-white border-[#8F733E] font-bold shadow-2xs'
+                : 'bg-[#FAF8F4] text-[#6B6457] border-[#E5DEC9] hover:border-[#8F733E]'
+            }`}
+          >
+            {belt.label}
+          </button>
+        ))}
+      </div>
+
+      {visibleRegions.length === 0 ? (
+        <OrientalEmptyState
+          variant="terroir"
+          compact
+          onPrimaryAction={handleResetTerroirState}
+          onSecondaryAction={onExploreShop}
+          onSmartRecommendationClick={(rec) => {
+            if (rec.searchKeyword && onFilterShopByTerroir) {
+              onFilterShopByTerroir(rec.searchKeyword);
+            } else if (onExploreShop) {
+              onExploreShop();
+            } else {
+              handleResetTerroirState();
+            }
+          }}
+        />
+      ) : (
+        <>
+          {/* Tea Mountains Horizontal Selector */}
+          <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar -mx-1 px-1">
+            {visibleRegions.map((region) => {
+              const isSelected = region.id === selectedRegionId;
+              const theme = getRegionThemeMeta(region.id);
+              return (
+                <button
+                  type="button"
+                  key={region.id}
+                  onClick={() => handleSelectRegion(region)}
+                  className={`flex-shrink-0 text-left p-3 rounded-2xl border transition-all w-48 relative overflow-hidden ${
+                    isSelected
+                      ? 'bg-[#232B26] text-white border-[#232B26] shadow-md scale-[1.01]'
+                      : 'bg-white text-[#2B332E] border-[#E8E2D5] hover:border-[#232B26]/30 hover:bg-[#FAF8F5]'
                   }`}
                 >
-                  {region.province}
-                </span>
-                {isSelected && (
-                  <span className="w-2 h-2 rounded-full bg-[#D8C496] animate-pulse" />
-                )}
-              </div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span
+                      className={`text-[10px] font-mono tracking-wider uppercase font-semibold ${
+                        isSelected ? 'text-[#D8C496]' : 'text-[#8F733E]'
+                      }`}
+                    >
+                      {region.province}
+                    </span>
+                    <span
+                      className={`text-[9px] font-oriental-serif px-1.5 py-0.2 rounded ${
+                        isSelected
+                          ? 'bg-white/15 text-[#E8D5A7]'
+                          : 'bg-[#F5F1E8] text-[#7A705E]'
+                      }`}
+                    >
+                      {theme.signatureCharm.split(' ')[0]}
+                    </span>
+                  </div>
 
-              <h3
-                className={`font-oriental-serif text-sm font-bold truncate ${
-                  isSelected ? 'text-white' : 'text-[#1F2522]'
-                }`}
-              >
-                {region.name}
-              </h3>
+                  <h3
+                    className={`font-oriental-serif text-sm font-bold truncate ${
+                      isSelected ? 'text-white' : 'text-[#1F2522]'
+                    }`}
+                  >
+                    {region.name}
+                  </h3>
 
-              <div
-                className={`text-[11px] font-oriental-serif truncate mt-1 ${
-                  isSelected ? 'text-white/80' : 'text-[#6F695E]'
-                }`}
-              >
-                {region.signatureTea}
-              </div>
+                  <div
+                    className={`text-[11px] font-oriental-serif truncate mt-1 ${
+                      isSelected ? 'text-white/80' : 'text-[#6F695E]'
+                    }`}
+                  >
+                    {region.signatureTea}
+                  </div>
 
-              <div
-                className={`text-[10px] font-mono mt-2 pt-1.5 border-t truncate ${
-                  isSelected
-                    ? 'border-white/15 text-white/60'
-                    : 'border-[#F0EBE1] text-[#938C7E]'
-                }`}
-              >
-                {region.altitude}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                  <div
+                    className={`text-[10px] font-mono mt-2 pt-1.5 border-t truncate ${
+                      isSelected
+                        ? 'border-white/15 text-white/60'
+                        : 'border-[#F0EBE1] text-[#938C7E]'
+                    }`}
+                  >
+                    {region.altitude}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-      {/* Main Sensory Radar & Aroma Spectrum Card */}
+      {/* Main D3 Sensory Radar & Aroma Spectrum Card */}
       <div className="bg-white rounded-3xl p-5 border border-[#ECE6DB] shadow-xs space-y-5 relative overflow-hidden">
-        {/* Top Tagline & Region Badge */}
-        <div className="flex items-start justify-between border-b border-[#F2EFE8] pb-4">
+        {/* Top Tagline, Region Badge & Dual-Region Comparison Selector */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b border-[#F2EFE8] pb-4 gap-3">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] font-mono tracking-widest text-[#8F733E] uppercase font-bold">
                 {selectedRegion.pinyin}
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#F5F0E6] text-[#7A705E] font-oriental-serif border border-[#E8DEC9]">
-                {aiSource === 'gemini-ai' ? '✦ Gemini 3.8 AI 灵感' : '春城嘉叶 · 馆藏风土档案'}
+                {aiSource === 'gemini-ai' ? '✦ Gemini AI 实时风土推演' : '春城嘉叶 · 馆藏山场风土谱'}
               </span>
             </div>
             <h3 className="font-oriental-serif text-base font-bold text-[#1F2522] mt-1">
@@ -199,145 +303,140 @@ export const TeaTerroirExplorer: React.FC<TeaTerroirExplorerProps> = ({
             </p>
           </div>
 
-          <div className="w-10 h-10 rounded-2xl bg-[#F5F1E8] border border-[#DDD5C5] flex items-center justify-center shrink-0 text-[#232B26]">
-            <Mountain className="w-5 h-5 text-[#8F733E]" />
+          {/* Dual-Terroir Overlay Control (e.g. 武夷岩韵 vs 西湖清芳) */}
+          <div className="flex items-center gap-1.5 bg-[#FAF8F4] px-2.5 py-1.5 rounded-xl border border-[#E5DEC9] shrink-0 self-start">
+            <GitCompare className="w-3.5 h-3.5 text-[#8F733E]" />
+            <span className="text-[10px] font-oriental-serif text-[#6A6355]">叠加对照：</span>
+            <select
+              value={compareRegionId || 'none'}
+              onChange={(e) => {
+                zenAudio.playZenChime();
+                const val = e.target.value;
+                setCompareRegionId(val === 'none' ? null : val);
+              }}
+              aria-label="选择叠加对照产区"
+              className="text-[11px] font-oriental-serif font-bold text-[#232B26] bg-transparent focus:outline-none cursor-pointer"
+            >
+              <option value="none">关闭双产区对照</option>
+              {TEA_REGIONS.filter((r) => r.id !== selectedRegionId).map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name.split(' ')[0]} ({getRegionThemeMeta(r.id).signatureCharm.split(' ')[0]})
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Sensory Radar & Dimension Scores (Side-by-side or responsive) */}
+        {/* D3.js Interactive Radar Chart & Dimension Progress Matrix */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-          {/* Visual SVG Radar Chart */}
-          <div className="flex flex-col items-center justify-center bg-[#FAF8F4] p-3 rounded-2xl border border-[#ECE5D8] relative">
-            <span className="text-[10px] font-mono text-[#8C8578] uppercase tracking-wider mb-1">
-              FIVE-DIMENSION SENSORY RADAR
-            </span>
-            <svg
-              viewBox="0 0 200 200"
-              className="w-48 h-48 max-w-full drop-shadow-xs"
-            >
-              {/* Concentric Reference Pentagons (20%, 40%, 60%, 80%, 100%) */}
-              {[0.25, 0.5, 0.75, 1.0].map((ratio, i) => {
-                const ringPoints = Array.from({ length: 5 })
-                  .map((_, idx) => {
-                    const angle = (idx * (360 / 5) - 90) * (Math.PI / 180);
-                    const r = ratio * maxRadius;
-                    return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
-                  })
-                  .join(' ');
-                return (
-                  <polygon
-                    key={i}
-                    points={ringPoints}
-                    fill="none"
-                    stroke="#E2D9CA"
-                    strokeWidth="0.8"
-                    strokeDasharray={ratio === 1.0 ? 'none' : '2,2'}
-                  />
-                );
-              })}
+          <D3TerroirRadarChart
+            primaryProfile={currentProfile}
+            compareProfile={compareProfile}
+            activeAxisKey={activeAxisKey}
+            onSelectAxis={handleSelectAxis}
+          />
 
-              {/* Axis Rays */}
-              {Array.from({ length: 5 }).map((_, idx) => {
-                const angle = (idx * (360 / 5) - 90) * (Math.PI / 180);
-                const x2 = center + maxRadius * Math.cos(angle);
-                const y2 = center + maxRadius * Math.sin(angle);
-                return (
-                  <line
-                    key={idx}
-                    x1={center}
-                    y1={center}
-                    x2={x2}
-                    y2={y2}
-                    stroke="#DCD2C0"
-                    strokeWidth="0.8"
-                  />
-                );
-              })}
+          {/* Interactive 5-Dimension Spectrum Bars + Micro-Terroir Factors */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between text-[11px] text-[#7A7366] pb-1 border-b border-[#F2EFE8]">
+              <span className="font-oriental-serif font-bold text-[#232B26]">
+                五维茶香感官光谱 (点击维度联动图谱)
+              </span>
+              <span className="font-mono text-[10px]">0 - 100 INDEX</span>
+            </div>
 
-              {/* Data Radar Area */}
-              <polygon
-                points={polygonPoints}
-                fill="rgba(143, 115, 62, 0.22)"
-                stroke="#8F733E"
-                strokeWidth="2"
-                className="transition-all duration-700 ease-out"
-              />
+            {TERROIR_RADAR_AXES.map((axis) => {
+              const score = currentProfile.radarScores[axis.key];
+              const compScore =
+                compareProfile && compareProfile.regionId !== currentProfile.regionId
+                  ? compareProfile.radarScores[axis.key]
+                  : null;
+              const isFocused = activeAxisKey === axis.key;
 
-              {/* Data Points */}
-              {scores.map((score, idx) => {
-                const angle = (idx * (360 / 5) - 90) * (Math.PI / 180);
-                const r = (score / 100) * maxRadius;
-                const cx = center + r * Math.cos(angle);
-                const cy = center + r * Math.sin(angle);
-                return (
-                  <circle
-                    key={idx}
-                    cx={cx}
-                    cy={cy}
-                    r="3.5"
-                    fill="#232B26"
-                    stroke="#FAF8F4"
-                    strokeWidth="1.5"
-                    className="transition-all duration-700 ease-out"
-                  />
-                );
-              })}
-
-              {/* Labels on vertices */}
-              {labels.map((lbl, idx) => {
-                const angle = (idx * (360 / 5) - 90) * (Math.PI / 180);
-                const textR = maxRadius + 16;
-                const tx = center + textR * Math.cos(angle);
-                const ty = center + textR * Math.sin(angle) + 3;
-                return (
-                  <text
-                    key={idx}
-                    x={tx}
-                    y={ty}
-                    fontSize="8.5"
-                    textAnchor="middle"
-                    fill="#5A5243"
-                    fontFamily="serif"
-                  >
-                    {lbl}
-                  </text>
-                );
-              })}
-            </svg>
-            <span className="text-[10px] text-[#A29A8C] mt-1 font-mono">
-              五维感官雷达均值 · 综合气韵极境
-            </span>
-          </div>
-
-          {/* Scores Breakdown List */}
-          <div className="space-y-2">
-            {[
-              { label: '香气高锐度', score: currentProfile.radarScores.aroma, desc: '迎鼻扬香，毫香花香冲天' },
-              { label: '山场岩骨韵', score: currentProfile.radarScores.mineralBody, desc: '砂岩矿质，刚劲骨力劲挺' },
-              { label: '回甘生津度', score: currentProfile.radarScores.sweetness, desc: '两颊清泉，冰糖甜意绵长' },
-              { label: '汤感稠厚度', score: currentProfile.radarScores.mouthfeel, desc: '稠滑如浆，茶胶饱满顺滑' },
-              { label: '喉韵幽长度', score: currentProfile.radarScores.throatDepth, desc: '深沉入喉，冷杯留香不散' },
-            ].map((item, i) => (
-              <div key={i} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-oriental-serif text-[#303833] font-medium">
-                    {item.label}
-                  </span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-mono font-bold text-[#8F733E]">
-                      {item.score}
-                    </span>
-                    <span className="text-[10px] text-[#A69F92]">/ 100</span>
+              return (
+                <button
+                  type="button"
+                  key={axis.key}
+                  onClick={() => {
+                    zenAudio.playZenChime();
+                    setActiveAxisKey(axis.key);
+                  }}
+                  className={`w-full text-left p-2 rounded-xl border transition-all space-y-1 ${
+                    isFocused
+                      ? 'bg-[#FAF6EE] border-[#8F733E] shadow-2xs'
+                      : 'bg-white border-transparent hover:bg-[#FAF8F4]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-oriental-serif text-[#232B26] font-bold">
+                        {axis.label}
+                      </span>
+                      <span className="text-[10px] text-[#8A8274] font-oriental-serif">
+                        ({axis.shortLabel})
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1 font-mono">
+                      <span
+                        className="font-bold text-xs"
+                        style={{ color: currentTheme.strokeColor }}
+                      >
+                        {score}
+                      </span>
+                      {compScore !== null && (
+                        <span className="text-[10px] text-[#8E8779]">vs {compScore}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-[#EFE9DF] overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#B5985E] to-[#232B26] rounded-full transition-all duration-700"
-                    style={{ width: `${item.score}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+
+                  <div className="w-full h-1.5 rounded-full bg-[#EFE9DF] overflow-hidden relative">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${score}%`,
+                        backgroundColor: currentTheme.strokeColor,
+                      }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+
+            {/* Comparative Terroir Insight Callout */}
+            <div className="p-2.5 rounded-xl bg-[#F5F1E8] border border-[#E4DAC6] text-[11px] text-[#4E473B] font-oriental-serif leading-relaxed">
+              {comparisonInsight.comparisonSummary}
+            </div>
+          </div>
+        </div>
+
+        {/* Terroir Physical Factors Bar (海拔 · 土壤母质 · 微气候) */}
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="p-2.5 rounded-xl bg-[#FAF8F4] border border-[#ECE5D8]">
+            <div className="flex items-center gap-1 text-[10px] text-[#8C8476] font-mono">
+              <Mountain className="w-3 h-3 text-[#8F733E]" />
+              <span>海拔垂直带</span>
+            </div>
+            <p className="font-oriental-serif font-bold text-[#232B26] mt-0.5 text-[11px] truncate">
+              {selectedRegion.altitude}
+            </p>
+          </div>
+          <div className="p-2.5 rounded-xl bg-[#FAF8F4] border border-[#ECE5D8]">
+            <div className="flex items-center gap-1 text-[10px] text-[#8C8476] font-mono">
+              <Layers className="w-3 h-3 text-[#8F733E]" />
+              <span>矿质土壤母岩</span>
+            </div>
+            <p className="font-oriental-serif font-bold text-[#232B26] mt-0.5 text-[11px] truncate">
+              {selectedRegion.soil}
+            </p>
+          </div>
+          <div className="p-2.5 rounded-xl bg-[#FAF8F4] border border-[#ECE5D8]">
+            <div className="flex items-center gap-1 text-[10px] text-[#8C8476] font-mono">
+              <Wind className="w-3 h-3 text-[#8F733E]" />
+              <span>云雾微气候</span>
+            </div>
+            <p className="font-oriental-serif font-bold text-[#232B26] mt-0.5 text-[11px] truncate">
+              {selectedRegion.climate}
+            </p>
           </div>
         </div>
 
@@ -429,30 +528,64 @@ export const TeaTerroirExplorer: React.FC<TeaTerroirExplorerProps> = ({
           </div>
         </div>
 
-        {/* Bottom CTA: Go to related product in Shop */}
-        <div className="pt-2 flex items-center justify-between border-t border-[#F2EFE8]">
+        {/* Bottom CTA: Go to related product in Shop, Filter Shop, or Reserve in Salon */}
+        <div className="pt-2 flex items-center justify-between border-t border-[#F2EFE8] flex-wrap gap-2">
           <div className="text-xs text-[#6F685B]">
             <span>源产地代表茗茶：</span>
             <span className="font-oriental-serif font-bold text-[#1F2522]">
-              {selectedRegion.signatureTea}
+              {catalogMapping.representativeProduct
+                ? catalogMapping.representativeProduct.name
+                : selectedRegion.signatureTea}
             </span>
           </div>
 
-          <button
-            onClick={() => {
-              if (selectedRegion.matchedProductId && onOpenProductById) {
-                onOpenProductById(selectedRegion.matchedProductId);
-              } else if (onExploreShop) {
-                onExploreShop();
-              }
-            }}
-            className="px-4 py-2 rounded-xl bg-[#232B26] hover:bg-[#181E1A] text-white text-xs font-oriental-serif flex items-center gap-1.5 transition-colors shadow-2xs"
-          >
-            <span>品鉴该山场茶品</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {onFilterShopByTerroir && (
+              <button
+                type="button"
+                onClick={() => {
+                  zenAudio.playZenChime();
+                  onFilterShopByTerroir(catalogMapping.searchKeyword);
+                }}
+                className="px-3 py-2 rounded-xl bg-[#F3EFE7] hover:bg-[#E7E0D3] text-[#4E473B] border border-[#DDD4C2] text-xs font-oriental-serif flex items-center gap-1 transition-colors"
+              >
+                <span>检索该山场 ({catalogMapping.filteredProducts.length}款)</span>
+              </button>
+            )}
+            {onReserveTeaInSalon && (
+              <button
+                type="button"
+                onClick={() => {
+                  zenAudio.playZenChime();
+                  onReserveTeaInSalon(selectedRegion.signatureTea);
+                }}
+                className="px-3 py-2 rounded-xl bg-[#FAF5E8] hover:bg-[#F2E6CC] text-[#8F733E] border border-[#E4D5B7] text-xs font-oriental-serif font-bold flex items-center gap-1 transition-colors"
+              >
+                <span>携茶预约茶室</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (catalogMapping.representativeProduct && onOpenProductById) {
+                  onOpenProductById(catalogMapping.representativeProduct.id);
+                } else if (selectedRegion.matchedProductId && onOpenProductById) {
+                  onOpenProductById(selectedRegion.matchedProductId);
+                } else if (onExploreShop) {
+                  onExploreShop();
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-[#232B26] hover:bg-[#181E1A] text-white text-xs font-oriental-serif flex items-center gap-1.5 transition-colors shadow-2xs"
+            >
+              <span>品鉴代表茶详情</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };
+

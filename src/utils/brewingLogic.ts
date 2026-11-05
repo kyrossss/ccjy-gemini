@@ -70,3 +70,65 @@ export function formatSteepDurationCN(seconds: number): string {
   if (remaining === 0) return `${mins} 分钟`;
   return `${mins} 分 ${remaining} 秒`;
 }
+
+export interface WisdomClosedLoopTarget {
+  shopCategory: 'all' | 'tea' | 'teapot' | 'teaware' | 'yao';
+  shopKeyword: string;
+  salonTeaName: string;
+  matchedProductId: string;
+}
+
+/**
+ * Maps a TeaWisdomItem to its corresponding Shop filter and Salon preselected tea
+ * for closed-loop cross-module navigation.
+ */
+export function resolveWisdomShopAndSalonTarget(
+  item: TeaWisdomItem
+): WisdomClosedLoopTarget {
+  switch (item.id) {
+    case 'dancong-gongfu':
+      return {
+        shopCategory: 'tea',
+        shopKeyword: '凤凰单丛',
+        salonTeaName: '诸心·凤凰单丛',
+        matchedProductId: 'tea-dancong-01',
+      };
+    case 'wuyi-rock-tea':
+      return {
+        shopCategory: 'tea',
+        shopKeyword: '武夷',
+        salonTeaName: '沉芳·武夷岩茶',
+        matchedProductId: 'tea-wuyi-01',
+      };
+    case 'zhuni-pot-care':
+      return {
+        shopCategory: 'teapot',
+        shopKeyword: '潮州',
+        salonTeaName: '诸心·凤凰单丛',
+        matchedProductId: 'pot-01',
+      };
+    case 'aged-tea-boiling':
+      return {
+        shopCategory: 'tea',
+        shopKeyword: '白毫银针',
+        salonTeaName: '太姥山荒野·头春特级白毫银针',
+        matchedProductId: 'tea-fuding-01',
+      };
+    case 'yao-portable-tea':
+      return {
+        shopCategory: 'yao',
+        shopKeyword: '',
+        salonTeaName: '爻·茶简 / YÁO SINGLE INFUSION',
+        matchedProductId: 'yao-01',
+      };
+    default:
+      return {
+        shopCategory: 'all',
+        shopKeyword: '',
+        salonTeaName: '沉芳·武夷岩茶',
+        matchedProductId: 'tea-wuyi-01',
+      };
+  }
+}
+
+

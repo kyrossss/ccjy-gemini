@@ -39,7 +39,7 @@ test('loadPersistedAppState returns clean defaults when storage is empty or corr
   assert.equal(recovered.chaTokens, 320);
 });
 
-test('savePersistedAppState and resetPersistedAppState round-trip all closed-loop states', () => {
+test('savePersistedAppState and resetPersistedAppState round-trip all closed-loop states including backend inventory & valuation threshold', () => {
   const mem = createMemoryStorage();
   const defaults = getDefaultPersistedState();
   const modified = {
@@ -49,6 +49,7 @@ test('savePersistedAppState and resetPersistedAppState round-trip all closed-loo
     chaTokens: 510,
     hasCheckedInToday: true,
     preselectedSalonTea: '1998年大雪山野生古树散茶',
+    valuationThreshold: 300000,
   };
 
   const savedOk = savePersistedAppState(modified, mem);
@@ -59,6 +60,8 @@ test('savePersistedAppState and resetPersistedAppState round-trip all closed-loo
   assert.equal(loaded.leafPoints, 25600);
   assert.equal(loaded.hasCheckedInToday, true);
   assert.equal(loaded.preselectedSalonTea, '1998年大雪山野生古树散茶');
+  assert.equal(loaded.valuationThreshold, 300000);
+  assert.ok(Array.isArray(loaded.inventoryRecords) && loaded.inventoryRecords.length > 0);
 
   const afterReset = resetPersistedAppState(mem);
   assert.equal(afterReset.userTier, 'MASTER');

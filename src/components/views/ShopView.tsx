@@ -112,10 +112,10 @@ export const ShopView: React.FC<ShopViewProps> = ({
 
       {/* Active Terroir / Keyword Filter Indicator */}
       {(searchQuery || activeCategory !== 'all') && (
-        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#FAF5E8] border border-[#E6D7B9] text-xs">
+        <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-[#FAF5E8] border border-[#232B26]/[0.06] text-xs">
           <div className="flex items-center gap-1.5 text-[#5E5443] font-oriental-serif">
-            <Sparkles className="w-3.5 h-3.5 text-[#8F733E]" />
-            <span>
+            <Sparkles className="w-3.5 h-3.5 text-[#8F733E] shrink-0" />
+            <span className="whitespace-nowrap truncate">
               当前筛选：
               {activeCategory !== 'all' && (
                 <strong className="mx-1 text-[#232B26]">
@@ -134,7 +134,7 @@ export const ShopView: React.FC<ShopViewProps> = ({
           <button
             type="button"
             onClick={handleResetFilters}
-            className="text-[11px] font-oriental-serif text-[#8F733E] hover:underline flex items-center gap-1"
+            className="text-[11px] font-oriental-serif text-[#8F733E] hover:underline flex items-center gap-1 shrink-0 whitespace-nowrap ml-2"
           >
             <RotateCcw className="w-3 h-3" />
             <span>重置全部</span>
@@ -188,7 +188,7 @@ export const ShopView: React.FC<ShopViewProps> = ({
               <div
                 key={item.id}
                 onClick={() => onOpenProduct(item)}
-                className="bg-white rounded-3xl p-3.5 border border-[#ECE6DB] shadow-xs cursor-pointer group hover:border-[#232B26] transition-all flex gap-3.5"
+                className="bg-white rounded-3xl p-3.5 border border-[#232B26]/[0.06] shadow-xs cursor-pointer group hover:border-[#232B26]/30 transition-all flex gap-3.5"
               >
                 {/* Product Image */}
                 <div className="relative w-28 sm:w-32 aspect-square rounded-2xl overflow-hidden bg-[#161B18] shrink-0">

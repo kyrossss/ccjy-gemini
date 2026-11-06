@@ -73,7 +73,7 @@ export const CULTIVATION_STAGES: Record<CultivationStageKey, CultivationBadge> =
     poeticQuote: '辨单丛诸心山场，识武夷炭火骨香。',
     lore: '出离粗浅啜饮，知晓凤凰山乌岽水栀子之高锐花香，识得武夷三坑两涧炭火老枞之深沉骨韵。',
     privilegeSummary: '解锁山场风土原叶图谱与专属季度尝鲜小泡礼',
-    perks: ['每月获赠当季特选手选茶样', '茶室预订立减与专属侍茶位', '朝夕点茶茗元代币额外加成'],
+    perks: ['每月获赠当季特选手选茶样', '茶室预订立减与专属侍茶位', '朝夕点茶嘉叶币额外加成'],
     themeColor: {
       bg: '#F5F5EC',
       border: '#E1DECA',

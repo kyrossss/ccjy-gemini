@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Calendar as CalIcon,
@@ -8,6 +8,12 @@ import {
   QrCode,
   Sparkles,
   Leaf,
+  Flame,
+  ChevronLeft,
+  ChevronRight,
+  Sun,
+  Sunset,
+  Moon,
 } from 'lucide-react';
 import { TeaRoom, SOMMELIERS } from '../data/mockData';
 import {
@@ -19,6 +25,63 @@ import {
 import { buildAvailableSalonTeas } from '../utils/orderResumeLogic';
 import { zenAudio } from '../utils/audioZen';
 import { BookingInvitationData } from './TeaInvitationModal';
+import { OrientalScrollTimePicker } from './OrientalScrollTimePicker';
+
+export interface TimeSlotOptionConfig {
+  key: 'morning' | 'afternoon' | 'evening';
+  name: string;
+  iconText: string;
+  subTitle: string;
+  standardTime: string;
+  charcoalTime: string;
+  standardPoetic: string;
+  charcoalPoetic: string;
+  standardSlot: string;
+  charcoalSlot: string;
+  teaSuggestion: string;
+}
+
+export const TIME_SLOT_CAROUSEL_OPTIONS: TimeSlotOptionConfig[] = [
+  {
+    key: 'morning',
+    name: '晨席',
+    iconText: '晨',
+    subTitle: '清和初醒',
+    standardTime: '09:30 - 12:00',
+    charcoalTime: '09:00 - 12:00',
+    standardPoetic: '清和早茗 · 醒神回甘',
+    charcoalPoetic: '生火候汤 · 榄炭初沸',
+    standardSlot: '晨席 (09:30 - 12:00 · 清和早茗)',
+    charcoalSlot: '晨席 (09:00 - 12:00 · 炭火备水·生火候汤)',
+    teaSuggestion: '宜白茶、明前龙井、清香乌龙',
+  },
+  {
+    key: 'afternoon',
+    name: '午席',
+    iconText: '午',
+    subTitle: '浮生半日',
+    standardTime: '14:00 - 17:00',
+    charcoalTime: '13:30 - 17:00',
+    standardPoetic: '浮生半日 · 慢品沉香',
+    charcoalPoetic: '慢火烹泉 · 活泉微沸',
+    standardSlot: '午席 (14:00 - 17:00 · 浮生半日)',
+    charcoalSlot: '午席 (13:30 - 17:00 · 炭火备水·慢火烹泉)',
+    teaSuggestion: '宜武夷岩茶、老枞水仙、陈年普洱',
+  },
+  {
+    key: 'evening',
+    name: '暮席',
+    iconText: '暮',
+    subTitle: '幽玄围炉',
+    standardTime: '18:30 - 21:30',
+    charcoalTime: '18:00 - 21:30',
+    standardPoetic: '幽玄夜席 · 静夜闲话',
+    charcoalPoetic: '围炉夜候 · 银壶生汤',
+    standardSlot: '暮席 (18:30 - 21:30 · 幽玄夜席)',
+    charcoalSlot: '暮席 (18:00 - 21:30 · 炭火备水·围炉夜候)',
+    teaSuggestion: '宜熟普、老白茶、古树红茶',
+  },
+];
 
 interface ReservationModalProps {
   isOpen: boolean;
@@ -26,7 +89,9 @@ interface ReservationModalProps {
   room: TeaRoom | null;
   userTier: MemberTierLevel;
   initialDate?: string;
+  initialTimeSlot?: string | null;
   preselectedTea?: string | null;
+  initialIsCharcoalPrep?: boolean;
   onOpenInvitation?: (booking: BookingInvitationData) => void;
   onOpenPosterModal?: (booking: BookingInvitationData) => void;
   onConfirmBooking: (booking: {
@@ -48,7 +113,9 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
   room,
   userTier,
   initialDate,
+  initialTimeSlot,
   preselectedTea,
+  initialIsCharcoalPrep,
   onOpenInvitation,
   onOpenPosterModal,
   onConfirmBooking,
@@ -59,7 +126,26 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
   const defaultDateStr = tomorrow.toISOString().split('T')[0];
 
   const [date, setDate] = useState(initialDate || defaultDateStr);
-  const [timeSlot, setTimeSlot] = useState('午席 (14:00 - 17:00 · 浮生半日)');
+  const [isCharcoalPrep, setIsCharcoalPrep] = useState<boolean>(() => {
+    if (initialIsCharcoalPrep !== undefined) return initialIsCharcoalPrep;
+    if (initialTimeSlot) {
+      return (
+        initialTimeSlot.includes('炭火') ||
+        initialTimeSlot.includes('09:00') ||
+        initialTimeSlot.includes('13:30') ||
+        initialTimeSlot.includes('18:00')
+      );
+    }
+    return true;
+  });
+
+  const [timeSlot, setTimeSlot] = useState(() => {
+    if (initialTimeSlot) return initialTimeSlot;
+    return isCharcoalPrep
+      ? TIME_SLOT_CAROUSEL_OPTIONS[1].charcoalSlot
+      : TIME_SLOT_CAROUSEL_OPTIONS[1].standardSlot;
+  });
+
   const [guests, setGuests] = useState(2);
   const [selectedSommelier, setSelectedSommelier] = useState(SOMMELIERS[0].name);
   const [selectedTea, setSelectedTea] = useState(
@@ -69,12 +155,36 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [createdPass, setCreatedPass] = useState<string | null>(null);
   const [lastBookingData, setLastBookingData] = useState<BookingInvitationData | null>(null);
+  const [isFlickering, setIsFlickering] = useState(false);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     if (initialDate) {
       setDate(initialDate);
     }
   }, [initialDate, isOpen]);
+
+  useEffect(() => {
+    if (initialTimeSlot) {
+      setTimeSlot(initialTimeSlot);
+      if (
+        initialTimeSlot.includes('炭火') ||
+        initialTimeSlot.includes('09:00') ||
+        initialTimeSlot.includes('13:30') ||
+        initialTimeSlot.includes('18:00')
+      ) {
+        setIsCharcoalPrep(true);
+      }
+    }
+  }, [initialTimeSlot, isOpen]);
+
+  useEffect(() => {
+    if (initialIsCharcoalPrep !== undefined) {
+      setIsCharcoalPrep(initialIsCharcoalPrep);
+    }
+  }, [initialIsCharcoalPrep, isOpen]);
 
   useEffect(() => {
     if (isOpen && room) {
@@ -85,6 +195,57 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
       setGuests((prev) => Math.min(prev, room.maxGuests));
     }
   }, [isOpen, room, preselectedTea]);
+
+  const handleToggleCharcoalPrep = () => {
+    zenAudio.playZenChime();
+    setIsFlickering(true);
+    setTimeout(() => setIsFlickering(false), 1200);
+
+    const nextMode = !isCharcoalPrep;
+    setIsCharcoalPrep(nextMode);
+
+    // Synchronize currently selected slot to corresponding duration
+    const matched = TIME_SLOT_CAROUSEL_OPTIONS.find(
+      (c) =>
+        timeSlot === c.standardSlot ||
+        timeSlot === c.charcoalSlot ||
+        timeSlot.includes(c.name)
+    ) || TIME_SLOT_CAROUSEL_OPTIONS[1];
+
+    setTimeSlot(nextMode ? matched.charcoalSlot : matched.standardSlot);
+  };
+
+  const handleSelectSlotOption = (option: TimeSlotOptionConfig, index: number) => {
+    zenAudio.playZenChime();
+    const newSlot = isCharcoalPrep ? option.charcoalSlot : option.standardSlot;
+    setTimeSlot(newSlot);
+    setErrorMsg('');
+
+    // Smoothly scroll selected card toward center
+    cardRefs.current[index]?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+  };
+
+  const isSlotOptionActive = (option: TimeSlotOptionConfig) => {
+    return (
+      timeSlot === option.standardSlot ||
+      timeSlot === option.charcoalSlot ||
+      timeSlot.startsWith(option.name)
+    );
+  };
+
+  const activeSlotIndex = TIME_SLOT_CAROUSEL_OPTIONS.findIndex(isSlotOptionActive);
+
+  const scrollSlots = (direction: 'left' | 'right') => {
+    zenAudio.playZenChime();
+    if (scrollContainerRef.current) {
+      const scrollAmount = direction === 'left' ? -220 : 220;
+      scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   if (!isOpen || !room) return null;
 
@@ -179,13 +340,22 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
                   <span className="font-medium text-[#202723]">{guests} 位贵宾</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-[#868074] block">专属侍茶师</span>
-                  <span className="font-medium text-[#8F733E]">{selectedSommelier}</span>
+                  <span className="text-[10px] text-[#868074] block">执壶侍茶</span>
+                  <span className="font-medium text-[#8F733E]">主理人亲泡</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-[#868074] block">开席选茶</span>
                   <span className="font-medium text-[#202723]">{selectedTea}</span>
                 </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-white/70 border border-[#DDD5C0] text-[11px] text-[#635A4B] space-y-0.5">
+                <span className="font-oriental-serif font-bold text-[#8F733E] block">
+                  ✦ 炭火慢烹 · 全舍独席礼遇
+                </span>
+                <p>
+                  主理人将于入席前红泥炉生炭候汤，以天然橄榄炭慢烧活泉，静候雅步。
+                </p>
               </div>
 
               <div className="pt-2 border-t border-[#DDD5C0] flex items-center justify-between text-xs text-[#7B7569]">
@@ -278,34 +448,46 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
               </div>
             </div>
 
-            {/* Time Slot */}
-            <div>
-              <label className="text-xs font-oriental-serif text-[#333C36] block mb-1">
-                茶席时段
-              </label>
-              <div className="space-y-1.5">
-                {[
-                  '晨席 (09:30 - 12:00 · 清和早茗)',
-                  '午席 (14:00 - 17:00 · 浮生半日)',
-                  '暮席 (18:30 - 21:30 · 幽玄夜席)',
-                ].map((slot) => (
-                  <button
-                    type="button"
-                    key={slot}
-                    onClick={() => setTimeSlot(slot)}
-                    className={`w-full py-2 px-3 rounded-xl text-xs flex items-center justify-between border transition-all text-left ${
-                      timeSlot === slot
-                        ? 'bg-[#232B26] text-[#FAF8F5] border-[#232B26]'
-                        : 'bg-white text-[#575044] border-[#DED7C7] hover:border-[#232B26]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 opacity-80" />
-                      <span>{slot}</span>
-                    </div>
-                    {timeSlot === slot && <span className="text-[10px] text-[#D8C496]">已选</span>}
-                  </button>
-                ))}
+            {/* Oriental Scroll Time-Picker (东方美学卷轴滚动时间选择器) */}
+            <OrientalScrollTimePicker
+              options={TIME_SLOT_CAROUSEL_OPTIONS}
+              selectedSlotKey={
+                TIME_SLOT_CAROUSEL_OPTIONS.find(isSlotOptionActive)?.key ||
+                TIME_SLOT_CAROUSEL_OPTIONS[1].key
+              }
+              onSelectSlot={(opt) => {
+                const newSlot = isCharcoalPrep ? opt.charcoalSlot : opt.standardSlot;
+                setTimeSlot(newSlot);
+                setErrorMsg("");
+              }}
+              isCharcoalPrep={isCharcoalPrep}
+              onToggleCharcoalPrep={handleToggleCharcoalPrep}
+              roomBasePrice={room.basePrice}
+            />
+
+            {/* Service & Salon Protocol Details (服务时长、专车与取消规则) */}
+            <div className="bg-[#FAF7F0] p-3 rounded-2xl border border-[#E8DFC9] space-y-1.5 text-[11px] text-[#554D3F]">
+              <div className="flex items-center justify-between">
+                <span className="font-oriental-serif font-bold text-[#232B26]">
+                  {room.name} · 入席规制
+                </span>
+                <span className="font-mono text-[10px] text-[#8F733E] bg-white px-2 py-0.5 rounded border border-[#E2D5BA]">
+                  {room.noticeAdvance || "提前 1 天预约"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
+                <div>• 时长：{room.duration || "2-3小时"}</div>
+                <div>• 人数：{room.capacity}</div>
+                <div>• 地点：深圳·北站附近（私人茶室不对外）</div>
+                <div>• 用器：全程逐泡换器 · 榄炭候汤</div>
+              </div>
+              {room.basePrice === 2680 && (
+                <div className="text-[10px] text-[#8F733E] font-medium bg-[#FAF4E6] p-1.5 rounded-lg border border-[#EADBBD]">
+                  ✦ 顶级茶席礼遇：时间由您定，可安排专车接送，主理人自用 5w 起步手拉壶与万元杯盏。
+                </div>
+              )}
+              <div className="pt-1 border-t border-[#EFE8D8] text-[10px] text-[#8C8372]">
+                统一取消规则：开席前 24 小时取消，全额退还；24 小时内取消，可改期一次。
               </div>
             </div>
 
@@ -384,33 +566,20 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
               </div>
             </div>
 
-            {/* Sommelier Selection */}
-            <div>
-              <label className="text-xs font-oriental-serif text-[#333C36] block mb-1">
-                钦点专属侍茶师
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {SOMMELIERS.map((som) => (
-                  <button
-                    type="button"
-                    key={som.id}
-                    onClick={() => setSelectedSommelier(som.name)}
-                    className={`p-2.5 rounded-xl border text-left transition-all ${
-                      selectedSommelier === som.name
-                        ? 'bg-[#232B26] text-[#FAF8F5] border-[#232B26]'
-                        : 'bg-white text-[#4A443A] border-[#DED7C7] hover:border-[#232B26]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold font-oriental-serif">{som.name}</span>
-                      <span className="text-[9px] opacity-75">{som.experience}</span>
-                    </div>
-                    <p className="text-[9px] line-clamp-2 leading-tight opacity-80">
-                      {som.specialty}
-                    </p>
-                  </button>
-                ))}
+            {/* Host & Charcoal Water Commitment */}
+            <div className="bg-[#FAF5E8] p-3 rounded-2xl border border-[#E4D7BD] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-oriental-serif font-bold text-[#232B26]">
+                  <Sparkles className="w-3.5 h-3.5 text-[#8F733E]" />
+                  <span>主理人亲泡 · 榄炭活泉</span>
+                </div>
+                <span className="text-[10px] text-[#8F733E] font-oriental-serif font-medium bg-white px-2 py-0.2 rounded-full border border-[#DFCEAD]">
+                  全舍独席
+                </span>
               </div>
+              <p className="text-[11px] text-[#5C5344] leading-relaxed">
+                案前红泥炉生天然榄炭，慢候甘泉，主理人一人执壶，细品茶真。
+              </p>
             </div>
 
             {/* Pricing and Submit */}

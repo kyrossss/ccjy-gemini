@@ -496,3 +496,91 @@ export function generateCuratedTeaWhisperPoster(
   };
 }
 
+/**
+ * Historical Evolution Trajectory Milestone for Personal Tea Character Radar
+ * 用户过去几个月随着品鉴订单积累，从追求高香到偏爱陈韵的动态演变轨迹
+ */
+export interface PalateEvolutionMilestone {
+  id: string;
+  monthLabel: string;
+  phaseTitle: string;
+  subtitle: string;
+  radar: PersonalTeaRadar;
+  orderCountSnapshot: number;
+  featuredTea: string;
+  evolutionNote: string;
+  primaryShift: string;
+}
+
+export const PALATE_EVOLUTION_TIMELINE: PalateEvolutionMilestone[] = [
+  {
+    id: 'stage-1',
+    monthLabel: '3个月前 (春分)',
+    phaseTitle: '见山是山 · 初探高香',
+    subtitle: '入席之初 · 偏好清扬鲜灵',
+    radar: {
+      roast: 62,
+      aroma: 95,
+      sweetness: 82,
+      mouthfeel: 68,
+      throatCharm: 70,
+    },
+    orderCountSnapshot: 2,
+    featuredTea: '乌岽通天香老丛单丛 · 栀子花香高锐',
+    evolutionNote: '初入茶境，敏锐捕获沸水激扬的花果高香，舌底微甜即欢喜，偏好轻发酵与轻火名枞。',
+    primaryShift: '高香领航 · 鲜灵爽利',
+  },
+  {
+    id: 'stage-2',
+    monthLabel: '2个月前 (小满)',
+    phaseTitle: '识骨寻津 · 专注生津',
+    subtitle: '进阶品鉴 · 追寻甜润层次',
+    radar: {
+      roast: 74,
+      aroma: 89,
+      sweetness: 94,
+      mouthfeel: 80,
+      throatCharm: 82,
+    },
+    orderCountSnapshot: 4,
+    featuredTea: '易武天门山高杆古树 · 舌底鸣泉生津',
+    evolutionNote: '从单一闻香转向舌下鸣泉体感，开始体悟山野原生态气韵与两颊生津持久力。',
+    primaryShift: '回甘渐深 · 甜韵通透',
+  },
+  {
+    id: 'stage-3',
+    monthLabel: '1个月前 (秋分)',
+    phaseTitle: '见微知著 · 凝炼汤感',
+    subtitle: '重器慢火 · 领略稠滑包浆',
+    radar: {
+      roast: 82,
+      aroma: 85,
+      sweetness: 91,
+      mouthfeel: 92,
+      throatCharm: 88,
+    },
+    orderCountSnapshot: 6,
+    featuredTea: '百年桐木荒野奇种 · 汤滑如绢金圈厚',
+    evolutionNote: '习惯使用炭火慢候，对茶多酚凝结的胶质稠滑度要求极高，茶汤过喉圆融如玉。',
+    primaryShift: '稠滑匀整 · 骨肉丰满',
+  },
+  {
+    id: 'stage-4',
+    monthLabel: '当下 (霜降立冬)',
+    phaseTitle: '返璞归真 · 沉潜岩韵',
+    subtitle: '通体澄明 · 偏爱深邃陈韵',
+    radar: {
+      roast: 86,
+      aroma: 84,
+      sweetness: 93,
+      mouthfeel: 94,
+      throatCharm: 97,
+    },
+    orderCountSnapshot: 8,
+    featuredTea: '止止庵隐岩白鸡冠 & 武夷正岩水仙 · 喉底清凉冷矿韵',
+    evolutionNote: '不争外扬之香，专注深谷苍苔与喉底冷矿余韵，炭火与岁月沉淀出温厚从容的大家风范。',
+    primaryShift: '喉韵造极 · 岁月沉韵',
+  },
+];
+
+

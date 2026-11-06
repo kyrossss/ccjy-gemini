@@ -13,6 +13,7 @@ import {
 import { TeaItem } from '../data/mockData';
 import { MemberTierLevel, calculateDiscountedPrice } from '../utils/teaLogic';
 import { zenAudio } from '../utils/audioZen';
+import { JiayeCoinIcon } from './JiayeCoinIcon';
 
 interface ProductDetailModalProps {
   item: TeaItem | null;
@@ -119,8 +120,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 )}
               </div>
               <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[#8F733E]">
-                <Sparkles className="w-3 h-3" />
-                <span>会员身份专享礼遇 · 支持茗元代币最高抵扣20%</span>
+                <JiayeCoinIcon size={13} variant="gold" />
+                <span>春城嘉叶储值礼遇 · 支持嘉叶币 100% 全额直接购买</span>
               </div>
             </div>
 

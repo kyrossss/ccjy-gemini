@@ -1,7 +1,13 @@
-import { ConsignmentItem, CONSIGNMENT_ITEMS } from '../data/mockData';
+import { ConsignmentItem, CONSIGNMENT_ITEMS, PRODUCTS } from '../data/mockData';
 import { MemberTierLevel, CartItem } from './teaLogic';
 import { UserOrderRecord, INITIAL_USER_ORDERS } from './orderResumeLogic';
 import { CourtesyMoodMemo } from './courtesyNotificationLogic';
+import {
+  InventoryRecord,
+  ReplenishLogEntry,
+  buildInitialInventoryRecords,
+  DEFAULT_VALUATION_THRESHOLD,
+} from './inventoryLogic';
 
 export const APP_STORAGE_KEY = 'ccjy_app_state_v1';
 
@@ -29,9 +35,13 @@ export interface PersistedAppState {
   savedMoodMemo: CourtesyMoodMemo | null;
   preselectedSalonTea: string | null;
   customPalateTags?: string[] | null;
+  inventoryRecords?: InventoryRecord[];
+  replenishLogs?: ReplenishLogEntry[];
+  valuationThreshold?: number;
 }
 
 export function getDefaultPersistedState(): PersistedAppState {
+  const defaultConsignments = CONSIGNMENT_ITEMS.map((item) => ({ ...item }));
   return {
     userTier: 'MASTER',
     leafPoints: 6850,
@@ -46,7 +56,7 @@ export function getDefaultPersistedState(): PersistedAppState {
         image: '/assets/aistudio/IMG_6489_3dbe7626.JPG',
       },
     ],
-    consignments: CONSIGNMENT_ITEMS.map((item) => ({ ...item })),
+    consignments: defaultConsignments,
     activeBookings: [
       {
         id: 'YUN-SEAT-892104',
@@ -67,6 +77,9 @@ export function getDefaultPersistedState(): PersistedAppState {
     savedMoodMemo: null,
     preselectedSalonTea: null,
     customPalateTags: null,
+    inventoryRecords: buildInitialInventoryRecords(PRODUCTS, defaultConsignments),
+    replenishLogs: [],
+    valuationThreshold: DEFAULT_VALUATION_THRESHOLD,
   };
 }
 
@@ -131,6 +144,19 @@ export function loadPersistedAppState(
       customPalateTags: Array.isArray(parsed.customPalateTags)
         ? parsed.customPalateTags
         : defaults.customPalateTags,
+      inventoryRecords:
+        Array.isArray(parsed.inventoryRecords) && parsed.inventoryRecords.length > 0
+          ? parsed.inventoryRecords
+          : defaults.inventoryRecords,
+      replenishLogs: Array.isArray(parsed.replenishLogs)
+        ? parsed.replenishLogs
+        : defaults.replenishLogs,
+      valuationThreshold:
+        typeof parsed.valuationThreshold === 'number' &&
+        Number.isFinite(parsed.valuationThreshold) &&
+        parsed.valuationThreshold > 0
+          ? parsed.valuationThreshold
+          : defaults.valuationThreshold,
     };
   } catch {
     return defaults;

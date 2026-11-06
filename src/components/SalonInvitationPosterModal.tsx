@@ -265,13 +265,18 @@ export const SalonInvitationPosterModal: React.FC<SalonInvitationPosterModalProp
     ctx.textAlign = 'center';
     ctx.font = 'italic 15px "Songti SC", serif';
     ctx.fillStyle = currentTheme.id === 'xuan' ? '#5E574B' : '#C4BCAE';
-    ctx.fillText(`「${posterData.brewingRitual}」`, width / 2, 980);
+    ctx.fillText(`「${posterData.brewingRitual}」`, width / 2, 975);
+
+    // 慢火烹泉 文化注脚
+    ctx.fillStyle = currentTheme.id === 'xuan' ? '#8F733E' : '#D8C496';
+    ctx.font = 'bold 13px "Songti SC", serif';
+    ctx.fillText('【慢火烹泉 · 文化注脚】全舍独设一席 · 主理人红泥炉橄榄炭候汤 · 活火慢烹高山活泉', width / 2, 1000);
 
     // Bottom QR Pass
     ctx.fillStyle = currentTheme.id === 'xuan' ? '#FFFFFF' : '#17201B';
-    ctx.fillRect(60, 1020, width - 120, 170);
+    ctx.fillRect(60, 1025, width - 120, 165);
     ctx.strokeStyle = currentTheme.id === 'xuan' ? '#DCD3C0' : '#36473C';
-    ctx.strokeRect(60, 1020, width - 120, 170);
+    ctx.strokeRect(60, 1025, width - 120, 165);
 
     ctx.textAlign = 'left';
     ctx.font = 'bold 18px "Songti SC", serif';

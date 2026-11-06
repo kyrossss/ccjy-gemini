@@ -87,6 +87,34 @@ export const TeaProfileDossierModal: React.FC<TeaProfileDossierModalProps> = ({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [addedTeaId, setAddedTeaId] = useState<string | null>(null);
 
+  // 轻量级平滑动效：模态框打开时评分从零增长至当前分值 (0 -> 1 count-up)
+  const [scoreProgress, setScoreProgress] = useState(0);
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setScoreProgress(0);
+      return;
+    }
+    setScoreProgress(0);
+    const start = performance.now();
+    const duration = 850; // ms
+    let animId: number;
+
+    const step = (timestamp: number) => {
+      const elapsed = timestamp - start;
+      const t = Math.min(1, elapsed / duration);
+      // Cubic ease-out
+      const eased = 1 - Math.pow(1 - t, 3);
+      setScoreProgress(eased);
+      if (t < 1) {
+        animId = requestAnimationFrame(step);
+      }
+    };
+
+    animId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(animId);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // Toggle tag in preference list
@@ -264,31 +292,42 @@ export const TeaProfileDossierModal: React.FC<TeaProfileDossierModalProps> = ({
             </div>
 
             {/* 2. Radar Chart Visualization */}
-            <div className="bg-white rounded-3xl p-5 border border-[#ECE5D7] shadow-xs flex flex-col items-center text-center">
+            <div className="bg-white rounded-3xl p-5 border border-[#232B26]/[0.06] shadow-xs flex flex-col items-center text-center">
               <div className="w-full flex items-center justify-between mb-2">
-                <div className="text-left">
-                  <h3 className="font-oriental-serif text-sm font-bold text-[#1E2320]">
+                <div className="text-left space-y-0.5">
+                  <h3 className="font-oriental-serif text-sm font-bold text-[#1E2320] cjk-title">
                     东方工夫茶五维图谱
                   </h3>
                   <span className="text-[10px] text-[#8C8578] font-mono block">
                     ROAST · AROMA · SWEETNESS · BODY · THROAT
                   </span>
                 </div>
-                <span className="text-[10px] font-oriental-serif px-2 py-0.5 rounded-full bg-[#FAF5E8] text-[#8F733E] border border-[#E9DDC2]">
+                <span className="text-[10px] font-oriental-serif px-2.5 py-0.5 rounded-full bg-[#FAF5E8] text-[#8F733E] border border-[#8F733E]/20 leading-none whitespace-nowrap shrink-0 shadow-2xs">
                   可点击顶点查看释义
                 </span>
               </div>
 
-              <TeaProfileRadar radar={profile.radar} size={270} interactive={true} />
+              {/* Animated Radar growing from zero to full values on open */}
+              <TeaProfileRadar
+                radar={{
+                  roast: Math.round(profile.radar.roast * scoreProgress),
+                  aroma: Math.round(profile.radar.aroma * scoreProgress),
+                  sweetness: Math.round(profile.radar.sweetness * scoreProgress),
+                  mouthfeel: Math.round(profile.radar.mouthfeel * scoreProgress),
+                  throatCharm: Math.round(profile.radar.throatCharm * scoreProgress),
+                }}
+                size={270}
+                interactive={true}
+              />
 
-              <div className="w-full pt-3 mt-2 border-t border-[#F2ECE1] flex items-center justify-between text-xs">
-                <span className="text-[11px] text-[#787163] font-oriental-serif">
+              <div className="w-full pt-3 mt-2 border-t border-[#232B26]/[0.06] flex items-center justify-between text-xs gap-2">
+                <span className="text-[11px] text-[#787163] font-oriental-serif truncate">
                   将五维雷达图与 AI 心情诗词合成为社交藏卡
                 </span>
                 <button
                   type="button"
                   onClick={() => setIsShareModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-[#FAF5E8] hover:bg-[#F1E5CC] text-[#8F733E] border border-[#E5D5B5] font-oriental-serif text-xs font-bold flex items-center gap-1 transition-colors"
+                  className="px-3 py-1.5 rounded-xl bg-[#FAF5E8] hover:bg-[#F1E5CC] text-[#8F733E] border border-[#8F733E]/20 font-oriental-serif text-xs font-bold flex items-center gap-1 transition-colors leading-none shrink-0 whitespace-nowrap"
                 >
                   <Share2 className="w-3.5 h-3.5" />
                   <span>生成雅致茶语海报</span>
@@ -403,15 +442,15 @@ export const TeaProfileDossierModal: React.FC<TeaProfileDossierModalProps> = ({
                         {/* Info */}
                         <div className="flex-1 space-y-1">
                           <div className="flex items-start justify-between">
-                            <span className="text-[10px] font-mono text-[#8F733E] font-medium block">
+                            <span className="text-[10px] font-mono text-[#8F733E] font-medium block whitespace-nowrap">
                               {tea.subCategory}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full bg-[#FAF5E8] border border-[#E8DFC9] text-[#8F733E] font-mono font-bold text-[10px]">
-                              契合度 {tea.matchScore}%
+                            <span className="px-2 py-0.5 rounded-full bg-[#FAF5E8] border border-[#8F733E]/20 text-[#8F733E] font-mono font-bold text-[10px] leading-none whitespace-nowrap shrink-0 shadow-2xs">
+                              契合度 {Math.round(tea.matchScore * scoreProgress)}%
                             </span>
                           </div>
 
-                          <h4 className="font-oriental-serif font-bold text-sm text-[#202723]">
+                          <h4 className="font-oriental-serif font-bold text-sm text-[#202723] cjk-title">
                             {tea.name}
                           </h4>
 

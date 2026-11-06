@@ -11,6 +11,7 @@ import {
 import { CartItem, MemberTierLevel, calculateCartSummary, TIER_CONFIGS } from '../utils/teaLogic';
 import { zenAudio } from '../utils/audioZen';
 import { OrientalEmptyState } from './OrientalEmptyState';
+import { JiayeCoinIcon, JiayeCoinBadge } from './JiayeCoinIcon';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -129,8 +130,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 我们将以传统棉麻与手工木匣精心妥帖包扎，附带防伪追溯证书顺丰专呈。
               </p>
             </div>
-            <div className="p-3 bg-[#F2EFE8] rounded-xl text-xs text-[#8F733E] font-mono border border-[#E3DAC8]">
-              获得叶值积分 +{lastEarnedSummary.points} · 赠茗元 +{lastEarnedSummary.tokens}
+            <div className="p-3 bg-[#F2EFE8] rounded-xl text-xs text-[#8F733E] font-mono border border-[#E3DAC8] flex items-center justify-center gap-2 flex-wrap">
+              <span>获得叶值积分 +{lastEarnedSummary.points}</span>
+              <span className="text-[#DDD5C5]">·</span>
+              <span className="inline-flex items-center gap-1 font-semibold text-[#8F733E]">
+                <JiayeCoinIcon size={14} variant="gold" />
+                <span>赠嘉叶币 +{lastEarnedSummary.tokens}</span>
+              </span>
             </div>
 
             <div className="w-full space-y-2 pt-2">
@@ -259,17 +265,21 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 />
               </div>
 
-              {/* CHÁ Token Offset Selector */}
+              {/* CHÁ Token (嘉叶币) Storage Value Payment Section */}
               {availableTokens > 0 && summary.maxTokenDeduction > 0 && (
-                <div className="bg-[#FAF6EC] p-3.5 rounded-2xl border border-[#E8DFCA] space-y-2">
+                <div className="bg-gradient-to-r from-[#FAF6EC] to-[#F7F2E4] p-3.5 rounded-2xl border border-[#E8DFCA] space-y-2.5 shadow-2xs">
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-1.5 text-[#735A2A] font-medium">
-                      <Coins className="w-3.5 h-3.5 text-[#BFA15F]" />
-                      <span>使用茗元代币抵扣 (1茗元 = 1元)</span>
+                      <JiayeCoinIcon size={14} variant="gold" />
+                      <span className="font-oriental-serif font-bold text-[#232B26] text-xs">
+                        嘉叶币储值支付 (1币 = 1元现金)
+                      </span>
                     </div>
-                    <span className="text-[11px] font-mono text-[#8C7649]">
-                      可用: {availableTokens} 茗元
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-[#8C7649]">可用储值:</span>
+                      <JiayeCoinBadge amount={availableTokens} size="xs" showUnit={false} />
+                      <span className="text-[10px] text-[#8C7649]">币</span>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -281,12 +291,40 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       onChange={(e) => setTokensToUse(Number(e.target.value))}
                       className="flex-1 accent-[#8F733E]"
                     />
-                    <span className="font-mono text-xs font-semibold text-[#8F733E] w-12 text-right">
+                    <span className="font-mono text-xs font-semibold text-[#8F733E] w-14 text-right">
                       -{tokensToUse}元
                     </span>
                   </div>
-                  <p className="text-[10px] text-[#A6977B]">
-                    根据规则，代币最高可抵扣折后总额的20% (上限 ¥{summary.maxTokenDeduction})
+
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#E8DFC9]">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTokensToUse(Math.min(availableTokens, summary.maxTokenDeduction))
+                        }
+                        className="px-2.5 py-1 rounded-md bg-[#8F733E] text-white text-[10px] font-oriental-serif hover:bg-[#7D6434] transition-colors flex items-center gap-1"
+                      >
+                        <JiayeCoinIcon size={12} variant="light" />
+                        <span>一键全额储值抵扣</span>
+                      </button>
+                      {tokensToUse > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setTokensToUse(0)}
+                          className="px-2 py-1 rounded-md bg-white border border-[#D5CABB] text-[#7A7061] text-[10px] hover:bg-[#F2ECE0] transition-colors"
+                        >
+                          不使用
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-mono text-[#8F733E]">
+                      {tokensToUse >= summary.maxTokenDeduction ? '✓ 本单已全额抵扣' : '支持任意组合支付'}
+                    </span>
+                  </div>
+
+                  <p className="text-[10px] text-[#A6977B] leading-relaxed">
+                    ※ 嘉叶币即春城嘉叶专享会员储值金（1币=1元），全场茗茶、手作壶与雅席预约均可 100% 直接购买支付；茶器置换款全额发放至此账户。
                   </p>
                 </div>
               )}
@@ -309,9 +347,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               )}
 
               {summary.tokenDeductionAmount > 0 && (
-                <div className="flex justify-between text-[#786134]">
-                  <span>茗元代币抵扣</span>
-                  <span className="font-mono">-¥{summary.tokenDeductionAmount.toLocaleString()}</span>
+                <div className="flex justify-between text-[#786134] items-center">
+                  <span className="flex items-center gap-1.5">
+                    <JiayeCoinIcon size={14} variant="gold" />
+                    <span>嘉叶币储值抵扣</span>
+                  </span>
+                  <span className="font-mono font-semibold text-[#8F733E]">
+                    -¥{summary.tokenDeductionAmount.toLocaleString()}
+                  </span>
                 </div>
               )}
 

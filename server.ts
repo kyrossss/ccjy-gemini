@@ -11,6 +11,8 @@ import {
 } from './src/utils/teaProfileLogic.ts';
 import { generateCuratedPosterData, getSensoryForPairedTea } from './src/utils/posterLogic.ts';
 import { generateCuratedMoodMemo } from './src/utils/courtesyNotificationLogic.ts';
+import { evaluateConsignmentImageAppraisal } from './src/utils/aiConsignmentAppraisal.ts';
+import { evaluateTeaDiaryLocally } from './src/utils/teaDiaryLogic.ts';
 
 dotenv.config();
 
@@ -104,6 +106,158 @@ app.post('/api/tea-terroir/sensory', async (req, res) => {
       success: true,
       source: 'fallback',
       profile: region.defaultProfile,
+    });
+  }
+});
+
+// AI Consignment Image Appraisal & Pricing Range Engine API
+app.post('/api/consign/analyze-image', async (req, res) => {
+  try {
+    const { imageUrl = '', hintCategory, description = '' } = req.body;
+    const fallbackAppraisal = evaluateConsignmentImageAppraisal(
+      imageUrl,
+      hintCategory,
+      description
+    );
+
+    if (!ai || !process.env.GEMINI_API_KEY) {
+      return res.json({
+        success: true,
+        source: 'curated-expert',
+        appraisal: fallbackAppraisal,
+      });
+    }
+
+    const prompt = `你是一位精通中国古董陶瓷、清代民国潮州朱泥手拉壶、宜兴古紫砂与中国纯干仓名优老茶（普洱、老白茶、武夷正岩）的资深鉴藏评估宗师。
+现在有藏家上传了一件名物照片进行流转寄售申请。
+- 藏品图片URL/特征：${imageUrl || '未提供URL'}
+- 预选类别线索：${hintCategory || '自动识别'}
+- 藏家随附描述：${description || '藏家自藏老器物'}
+
+请运用专业的金石器物学与茶叶风土知识，从该器物中提炼出精确属性并基于二级流通市场行情给出客观合理的定价范围。
+请严格输出 JSON 格式（不要添加额外 markdown 或外壳说明）：
+{
+  "detectedCategory": "tea" 或 "teapot" 或 "antique",
+  "suggestedName": "规范高雅的东方名物标题（如：清晚期·潮州老朱泥梨形手拉壶 或 1996年·中茶牌八八青饼纯干仓）",
+  "material": "胎土材质或原料山场（如：老梨皮朱泥含天然粗砂颗粒 或 勐海高山乔木古树春茶大叶种）",
+  "estimatedEra": "预估年代（如：清代晚期 约1890-1910年间 或 1990年代中后期）",
+  "craftsmanshipFeatures": [
+    "3-4条关键的工艺或品相特征点，如出水孔道、底款印记、条索乌润度、包浆老结程度等"
+  ],
+  "conditionRating": "品相评级描述（如：9.8品 全品相无冲无磕，包浆莹润老气十足）",
+  "confidenceScore": 95到99之间的整数,
+  "priceRange": {
+    "minPrice": 最低估价整数人民币,
+    "maxPrice": 最高估价整数人民币,
+    "suggestedPrice": 建议挂牌席价整数人民币
+  },
+  "pricingRationale": "一段80-120字的专业定价依据，参考同年代、同品相的历史流转案例，说明当前估值合理性与预期成交周期。",
+  "optimizationTips": [
+    "2-3条针对藏家的展示优化建议，如补拍出水孔微距、补充得器伴席因缘故事等"
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const text = response.text || '';
+    const parsed = JSON.parse(text);
+
+    return res.json({
+      success: true,
+      source: 'gemini-ai',
+      appraisal: {
+        ...fallbackAppraisal,
+        ...parsed,
+        source: 'gemini-ai',
+      },
+    });
+  } catch (error) {
+    console.error('Gemini Consign Appraisal API error:', error);
+    const fallbackAppraisal = evaluateConsignmentImageAppraisal(
+      req.body?.imageUrl,
+      req.body?.hintCategory,
+      req.body?.description
+    );
+    return res.json({
+      success: true,
+      source: 'fallback',
+      appraisal: fallbackAppraisal,
+    });
+  }
+});
+
+// AI Tea Session Diary & Personal Terroir Analysis API
+app.post('/api/tea-diary/analyze', async (req, res) => {
+  try {
+    const { teaWare = '', teaName = '', teaExperience = '', roomName = '' } = req.body;
+    const fallbackResult = evaluateTeaDiaryLocally(teaWare, teaName, teaExperience);
+
+    if (!ai || !process.env.GEMINI_API_KEY) {
+      return res.json({
+        success: true,
+        source: 'curated-expert',
+        analysis: fallbackResult,
+      });
+    }
+
+    const prompt = `你是一位深谙宋代茶宴、潮汕工夫茶道与岩茶风土品评的东方茶道宗师。
+用户刚刚在春城嘉叶【${roomName || '雅室茶席'}】完成了一场品茗雅集，并记录了今日的茶事心得：
+- 使用茶器：${teaWare}
+- 品鉴茶品：${teaName}
+- 席间茶感：${teaExperience}
+
+请运用专业的工夫茶感官审评与风土（Terroir）知识，深度解析用户的茶事日记，提炼出其风土品鉴标签，并计算对用户「个人风土雷达」五维（焙火火候 roast、香扬高扬 aroma、回甘生津 sweetness、稠滑醇厚 mouthfeel、喉韵岩气 throatCharm）的增量影响值（0-15之间的整数）。
+请严格输出 JSON 格式（不要添加额外 markdown 或外壳说明）：
+{
+  "extractedTags": ["3-4个四字经典东方感官风土词汇，如：岩骨花香、米汤稠滑、冷杯留香、喉底生津"],
+  "radarDeltas": {
+    "roast": 0到15之间的整数,
+    "aroma": 0到15之间的整数,
+    "sweetness": 0到15之间的整数,
+    "mouthfeel": 0到15之间的整数,
+    "throatCharm": 0到15之间的整数
+  },
+  "terroirSummary": "一段50-80字的风土解析，点出该茶器器型胎土如何催化茶汤，以及产区风土在此次冲瀹中的体征表现。",
+  "sommelierNote": "一段30-50字驻地品鉴师对该茶人今日品鉴境界的温存题记与赞许。"
+}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const text = response.text || '';
+    const parsed = JSON.parse(text);
+
+    return res.json({
+      success: true,
+      source: 'gemini-ai',
+      analysis: {
+        ...fallbackResult,
+        ...parsed,
+        source: 'gemini-ai',
+      },
+    });
+  } catch (error) {
+    console.error('Gemini Tea Diary Analysis API error:', error);
+    const fallbackResult = evaluateTeaDiaryLocally(
+      req.body?.teaWare,
+      req.body?.teaName,
+      req.body?.teaExperience
+    );
+    return res.json({
+      success: true,
+      source: 'fallback',
+      analysis: fallbackResult,
     });
   }
 });

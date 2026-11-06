@@ -9,6 +9,7 @@ import {
   calculateConsignmentBreakdown,
   calculateCartSummary,
   validateReservation,
+  resolveEffectiveMembership,
 } from './teaLogic.ts';
 import { TEA_WISDOM_ITEMS } from '../data/teaWisdomData.ts';
 import { resolveWisdomShopAndSalonTarget } from './brewingLogic.ts';
@@ -106,9 +107,13 @@ test('calculateConsignmentBreakdown calculates fee rates and rewards accurately'
   assert.equal(guestResult.sellerReceives, 9000);
   assert.equal(guestResult.chaTokenReward, 200);
 
-  const yinshanResult = calculateConsignmentBreakdown(10000, 'YINSHAN');
-  assert.equal(yinshanResult.platformFee, 200); // 2%
-  assert.equal(yinshanResult.sellerReceives, 9800);
+  const blackGoldResult = calculateConsignmentBreakdown(10000, 'BLACK_GOLD');
+  assert.equal(blackGoldResult.platformFee, 600); // 6%
+  assert.equal(blackGoldResult.sellerReceives, 9400);
+
+  const lifetimeBlackGoldResult = calculateConsignmentBreakdown(10000, 'LIFETIME_BLACK_GOLD');
+  assert.equal(lifetimeBlackGoldResult.platformFee, 500); // 5% 最优
+  assert.equal(lifetimeBlackGoldResult.sellerReceives, 9500);
 });
 
 test('calculateCartSummary computes totals, member discount, and token offsets', () => {
@@ -165,4 +170,45 @@ test('chunchengjiaye.com official website archive (30 teas, 5 porcelain wares, 7
   }
 });
 
+test('calculateCartSummary supports 100% full Jiaye Coins store-value payment', () => {
+  const items = [
+    { id: '1', name: '大红袍茶席', price: 1200, quantity: 1 },
+  ];
+  // Subtotal = 1200, GUEST has 0% discount
+  // 100% full deduction: user has 1500 tokens, requests 1200
+  const fullPay = calculateCartSummary(items, 'GUEST', 1200, 1500);
+  assert.equal(fullPay.rawSubtotal, 1200);
+  assert.equal(fullPay.discountedSubtotal, 1200);
+  assert.equal(fullPay.tokensUsed, 1200);
+  assert.equal(fullPay.tokenDeductionAmount, 1200);
+  assert.equal(fullPay.finalTotal, 0); // 0 RMB cash needed!
 
+  // Partial pay: user has 500 tokens, requests 500
+  const partialPay = calculateCartSummary(items, 'GUEST', 500, 1500);
+  assert.equal(partialPay.tokensUsed, 500);
+  assert.equal(partialPay.finalTotal, 700);
+});
+
+test('resolveEffectiveMembership adjudicates dual-track membership with highest privilege principle', () => {
+  // Case 1: Annual GUEST + Lifetime Black Gold (100w)
+  // Multiplier: max(1.0, 3.0) = 3.0x; Fee rate: min(10%, 5%) = 5%
+  const res1 = resolveEffectiveMembership('GUEST', 'LIFETIME_BLACK_GOLD');
+  assert.equal(res1.effectiveMultiplier, 3.0);
+  assert.equal(res1.effectiveConsignmentRate, 0.05);
+  assert.equal(res1.primaryTierId, 'LIFETIME_BLACK_GOLD');
+  assert.equal(res1.hasLifetimeStatus, true);
+
+  // Case 2: Annual Black Gold (20w points, 2.0x, 6%) + Lifetime Platinum (60w spent, 2.5x, 6%)
+  // Multiplier: max(2.0, 2.5) = 2.5x; Fee rate: min(6%, 6%) = 6%
+  const res2 = resolveEffectiveMembership('BLACK_GOLD', 'LIFETIME_PLATINUM');
+  assert.equal(res2.effectiveMultiplier, 2.5);
+  assert.equal(res2.effectiveConsignmentRate, 0.06);
+  assert.equal(res2.primaryTierId, 'LIFETIME_PLATINUM');
+
+  // Case 3: Annual Gold (3w points, 1.5x, 8%) + No lifetime status
+  const res3 = resolveEffectiveMembership('GOLD', null);
+  assert.equal(res3.effectiveMultiplier, 1.5);
+  assert.equal(res3.effectiveConsignmentRate, 0.08);
+  assert.equal(res3.primaryTierId, 'GOLD');
+  assert.equal(res3.hasLifetimeStatus, false);
+});

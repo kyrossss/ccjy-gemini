@@ -158,12 +158,12 @@ export const DailyTeaRitual: React.FC<DailyTeaRitualProps> = ({
             {checkedIn ? (
               <>
                 <CheckCircle className="w-4 h-4 text-[#2F6740]" />
-                <span>今日点茶已圆满 · 获叶值 +50 茗元 +2</span>
+                <span>今日点茶已圆满 · 获叶值 +50 嘉叶币 +2</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4 text-white" />
-                <span>点茶圆满 · 签到领50叶值与2茗元</span>
+                <span>点茶圆满 · 签到领50叶值与2嘉叶币</span>
               </>
             )}
           </button>

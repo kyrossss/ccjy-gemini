@@ -99,7 +99,7 @@ export const PointsRedeemModal: React.FC<PointsRedeemModalProps> = ({
                 <span className="font-mono text-base font-bold text-[#8F733E]">
                   {chaTokens.toLocaleString()}
                 </span>
-                <span className="text-[11px] text-[#7E6637] ml-1">茗元代币</span>
+                <span className="text-[11px] text-[#7E6637] ml-1">嘉叶币</span>
               </div>
             </div>
           </div>
@@ -126,7 +126,7 @@ export const PointsRedeemModal: React.FC<PointsRedeemModalProps> = ({
               </button>
             </div>
             <p className="text-[11px] text-[#456B50] leading-relaxed">
-              该礼遇已自动入库至您的「茶事履历 — 已入囊商品订单」，并附赠 +1 茗元流转激励。
+              该礼遇已自动入库至您的「茶事履历 — 已入囊商品订单」，并附赠 +1 嘉叶币流转激励。
             </p>
             {onOpenResumeOrders && (
               <button

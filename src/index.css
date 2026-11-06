@@ -13,6 +13,18 @@
     color: #1A1F1D;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Prevent orphan single-character line wraps globally across headings */
+  h1, h2, h3, h4, h5, h6 {
+    text-wrap: balance;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 
   /* Classical Chinese Serif display headings */
@@ -24,6 +36,66 @@
   .font-display-serif {
     font-family: var(--font-display);
     letter-spacing: 0.04em;
+  }
+
+  /* CJK typography utilities to strictly eliminate single-character dangling lines */
+  .cjk-title {
+    text-wrap: balance;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    letter-spacing: 0.02em;
+  }
+
+  .cjk-body {
+    text-wrap: pretty;
+    line-height: 1.75;
+    word-break: break-word;
+    letter-spacing: 0.015em;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Modal and Card Content Breathing Room */
+  .modal-text-content {
+    line-height: 1.75;
+    text-wrap: pretty;
+    word-break: break-word;
+  }
+
+  .modal-text-content p {
+    margin-bottom: 0.75rem;
+  }
+
+  .modal-text-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  .card-breathing {
+    padding: 1.125rem;
+    border-width: 1px;
+    border-color: rgba(35, 43, 38, 0.06);
+  }
+
+  /* Badge, pill, price, and currency anti-wrap utilities */
+  .badge-oriental {
+    white-space: nowrap;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+  }
+
+  .price-nowrap {
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
   }
 
   /* Paper grain subtle background */
@@ -41,4 +113,63 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Charcoal Hearth Breathing Red Glow Pulse (炭火红光脉冲) */
+  @keyframes charcoalHearthPulse {
+    0%, 100% {
+      opacity: 0.42;
+      transform: scale(0.98);
+      filter: blur(52px);
+    }
+    50% {
+      opacity: 0.82;
+      transform: scale(1.08);
+      filter: blur(68px);
+    }
+  }
+
+  @keyframes emberRise {
+    0% {
+      transform: translateY(20px) scale(0.7);
+      opacity: 0;
+    }
+    40% {
+      opacity: 0.85;
+    }
+    100% {
+      transform: translateY(-60px) scale(1.1);
+      opacity: 0;
+    }
+  }
+
+  .animate-charcoal-hearth {
+    animation: charcoalHearthPulse 4s ease-in-out infinite;
+  }
+
+  .animate-ember-rise {
+    animation: emberRise 3.2s ease-in-out infinite;
+  }
+
+  /* Gentle Song Dynasty Warm Rim Pulse for Lifetime Connoisseurs (终身会员·边缘微弱暖光脉冲) */
+  @keyframes warmRimPulse {
+    0%, 100% {
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(190, 160, 110, 0.22);
+    }
+    50% {
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.52), inset 0 0 0 1.5px rgba(215, 185, 135, 0.42), 0 0 16px rgba(180, 140, 85, 0.16);
+    }
+  }
+
+  .animate-warm-rim-pulse,
+  .animate-gilded-aura {
+    animation: warmRimPulse 5.4s ease-in-out infinite;
+  }
+
+  /* Classical Song Brocade / Satin Weave Subtle Overlay (素雅缎面质感底纹) */
+  .bg-satin-brocade {
+    background-image:
+      radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
+      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 1.5px, transparent 1.5px, transparent 4.5px);
+  }
 }
+

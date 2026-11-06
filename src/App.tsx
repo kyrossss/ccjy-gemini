@@ -26,6 +26,7 @@ import { TeaResumeModal, ResumeTabType } from './components/TeaResumeModal';
 import { TeaProfileDossierModal } from './components/TeaProfileDossierModal';
 import { SalonInvitationPosterModal } from './components/SalonInvitationPosterModal';
 import { CourtesyMoodMemoModal } from './components/CourtesyMoodMemoModal';
+import { InventoryManagementDashboard } from './components/InventoryManagementDashboard';
 
 import {
   PRODUCTS,
@@ -65,9 +66,23 @@ import {
   savePersistedAppState,
   resetPersistedAppState,
 } from './utils/storagePersistence';
+import {
+  InventoryRecord,
+  InventoryCategory,
+  ReplenishLogEntry,
+  buildInitialInventoryRecords,
+  computeInventorySummary,
+  replenishInventoryItem,
+  batchReplenishLowStock,
+  deductInventoryOnOrderWithAudit,
+  updateItemSafetyThreshold,
+  evaluateInventoryValuationStatus,
+  DEFAULT_VALUATION_THRESHOLD,
+} from './utils/inventoryLogic';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<TabKey>('home');
+  const [isBackendViewOpen, setIsBackendViewOpen] = useState<boolean>(false);
 
   // Cross-view Shop Filter State (from Home 4 Pillars, D3 Mountain Terroir & Brewing Guide)
   const [shopFilter, setShopFilter] = useState<{
@@ -80,6 +95,19 @@ export default function App() {
 
   // Hydrate initial state from localStorage (Round 1 Persistence Closed Loop)
   const [initialPersisted] = useState(() => loadPersistedAppState());
+
+  // Store Backend Inventory State (Tea, Ceramics, Consignments)
+  const [inventoryRecords, setInventoryRecords] = useState<InventoryRecord[]>(
+    () =>
+      initialPersisted.inventoryRecords ??
+      buildInitialInventoryRecords(PRODUCTS, initialPersisted.consignments)
+  );
+  const [replenishLogs, setReplenishLogs] = useState<ReplenishLogEntry[]>(
+    () => initialPersisted.replenishLogs ?? []
+  );
+  const [valuationThreshold, setValuationThreshold] = useState<number>(
+    () => initialPersisted.valuationThreshold ?? DEFAULT_VALUATION_THRESHOLD
+  );
 
   // Member State
   const [userTier, setUserTier] = useState<MemberTierLevel>(initialPersisted.userTier);
@@ -125,8 +153,12 @@ export default function App() {
     initialPersisted.customPalateTags ?? null
   );
 
-  // Reservation Calendar Selected Date State
+  // Reservation Calendar Selected Date & TimeSlot State
   const [selectedReservationDate, setSelectedReservationDate] = useState<string>('2026-11-08');
+  const [selectedReservationTimeSlot, setSelectedReservationTimeSlot] = useState<string | null>(
+    null
+  );
+  const [isCharcoalPrepActive, setIsCharcoalPrepActive] = useState<boolean>(true);
 
   // Modal States
   const [selectedProduct, setSelectedProduct] = useState<TeaItem | null>(null);
@@ -175,6 +207,9 @@ export default function App() {
       savedMoodMemo,
       preselectedSalonTea,
       customPalateTags,
+      inventoryRecords,
+      replenishLogs,
+      valuationThreshold,
     });
   }, [
     userTier,
@@ -188,6 +223,9 @@ export default function App() {
     savedMoodMemo,
     preselectedSalonTea,
     customPalateTags,
+    inventoryRecords,
+    replenishLogs,
+    valuationThreshold,
   ]);
 
   // Global ESC key support to close topmost active modal
@@ -208,6 +246,7 @@ export default function App() {
       else if (selectedWisdom) setSelectedWisdom(null);
       else if (selectedProduct) setSelectedProduct(null);
       else if (isCartOpen) setIsCartOpen(false);
+      else if (isBackendViewOpen) setIsBackendViewOpen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -224,6 +263,7 @@ export default function App() {
     selectedWisdom,
     selectedProduct,
     isCartOpen,
+    isBackendViewOpen,
   ]);
 
   // Unified helper to award leafPoints and automatically promote userTier if crossing threshold
@@ -235,6 +275,95 @@ export default function App() {
     if (tierCheck.upgraded) {
       setUserTier(tierCheck.nextTier);
     }
+  };
+
+  // Store Backend Inventory Replenishment Handlers
+  const handleReplenishInventoryItem = (itemId: string, addQuantity: number) => {
+    const timestamp = new Date().toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const result = replenishInventoryItem(inventoryRecords, itemId, addQuantity, timestamp);
+    setInventoryRecords(result.updatedRecords);
+    if (result.logEntry) {
+      setReplenishLogs((prev) => [result.logEntry!, ...prev]);
+    }
+  };
+
+  const handleBatchReplenishInventory = (categoryFilter: 'ALL' | InventoryCategory = 'ALL') => {
+    const timestamp = new Date().toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const result = batchReplenishLowStock(inventoryRecords, categoryFilter, timestamp);
+    setInventoryRecords(result.updatedRecords);
+    if (result.logs.length > 0) {
+      setReplenishLogs((prev) => [...result.logs, ...prev]);
+    }
+  };
+
+  const handleResetInventory = () => {
+    setInventoryRecords(buildInitialInventoryRecords(PRODUCTS, consignments));
+    setReplenishLogs([]);
+  };
+
+  const handleUpdateSafetyThreshold = (itemId: string, newThreshold: number) => {
+    setInventoryRecords((prev) => updateItemSafetyThreshold(prev, itemId, newThreshold));
+  };
+
+  const handleUpdateConsignmentItem = (
+    itemId: string,
+    patch: Partial<Pick<ConsignmentItem, 'currentPrice' | 'status'>>
+  ) => {
+    setConsignments((prev) =>
+      prev.map((c) => (c.id === itemId ? { ...c, ...patch } : c))
+    );
+    setInventoryRecords((prev) =>
+      prev.map((rec) => {
+        if (rec.id !== itemId) return rec;
+        return {
+          ...rec,
+          unitPrice: patch.currentPrice ?? rec.unitPrice,
+          stockQuantity:
+            patch.status === 'sold'
+              ? 0
+              : patch.status === 'active' && rec.stockQuantity === 0
+              ? 1
+              : rec.stockQuantity,
+        };
+      })
+    );
+  };
+
+  const handleTriggerValuationShortagePush = (status?: {
+    currentValuation: number;
+    threshold: number;
+    deficit: number;
+  }) => {
+    const activeSummary = computeInventorySummary(inventoryRecords);
+    const currVal = status ? status.currentValuation : activeSummary.totalValuation;
+    const thresh = status ? status.threshold : valuationThreshold;
+    const def = status ? status.deficit : Math.max(0, thresh - currVal);
+
+    setActiveNotification({
+      id: `valuation-shortage-${Date.now()}`,
+      title: '春城嘉叶 · 掌柜货值告警推送',
+      message: `全品类总货值仅 ¥${(currVal / 10000).toFixed(1)}万，已跌破安全基线 ¥${(thresh / 10000).toFixed(1)}万 (缺口 ¥${(def / 10000).toFixed(1)}万)，请及时补仓`,
+      timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      roomName: '全馆仓储库区',
+      date: new Date().toLocaleDateString('zh-CN'),
+      timeSlot: '供应链调度 · 实时告警',
+      kind: 'valuation-shortage',
+      valuationMeta: {
+        currentValuation: currVal,
+        threshold: thresh,
+        deficit: def,
+      },
+    });
   };
 
   const handleResetDemoState = () => {
@@ -251,6 +380,11 @@ export default function App() {
     setPreselectedSalonTea(fresh.preselectedSalonTea);
     setCustomPalateTags(fresh.customPalateTags ?? null);
     setShopFilter({ category: 'all', keyword: '' });
+    setInventoryRecords(
+      fresh.inventoryRecords ?? buildInitialInventoryRecords(PRODUCTS, fresh.consignments)
+    );
+    setReplenishLogs(fresh.replenishLogs ?? []);
+    setValuationThreshold(fresh.valuationThreshold ?? DEFAULT_VALUATION_THRESHOLD);
   };
 
   // Cross-view Shop Filtering Handler (from Home 4 Pillars, D3 Mountain Terroir & Brewing Guide)
@@ -471,6 +605,34 @@ export default function App() {
       )
     );
 
+    // Sync storefront purchase deduction to backend inventory records with outbound audit logs
+    const timestamp = new Date().toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const deductResult = deductInventoryOnOrderWithAudit(
+      inventoryRecords,
+      orderInfo.orderedItems.map((it) => ({ id: it.id, quantity: it.quantity })),
+      timestamp,
+      '前台茶铺结算 · 自动出库'
+    );
+    setInventoryRecords(deductResult.updatedRecords);
+    if (deductResult.outboundLogs.length > 0) {
+      setReplenishLogs((prev) => [...deductResult.outboundLogs, ...prev]);
+    }
+
+    // Automatically trigger valuation shortage push if purchase drops total valuation below threshold
+    const postOrderSummary = computeInventorySummary(deductResult.updatedRecords);
+    if (postOrderSummary.totalValuation < valuationThreshold) {
+      handleTriggerValuationShortagePush({
+        currentValuation: postOrderSummary.totalValuation,
+        threshold: valuationThreshold,
+        deficit: Math.max(0, valuationThreshold - postOrderSummary.totalValuation),
+      });
+    }
+
     setChaTokens((prev) => Math.max(0, prev - orderInfo.tokensUsed + orderInfo.tokensEarned));
     awardLeafPointsWithTierCheck(orderInfo.pointsEarned);
   };
@@ -478,6 +640,27 @@ export default function App() {
   // Consignment Submission & Purchase Closed-Loop Handlers
   const handleSubmitConsignment = (newItem: ConsignmentItem) => {
     setConsignments((prev) => [newItem, ...prev]);
+    setInventoryRecords((prev) => [
+      {
+        id: newItem.id,
+        sku: `CCJY-CON-${String(prev.filter((r) => r.category === 'Consignments').length + 1).padStart(3, '0')}`,
+        name: newItem.name,
+        category: 'Consignments',
+        categoryLabelCN: '典藏寄售 · 保真孤品',
+        subCategory: '新入库寄售',
+        origin: `鉴藏证号 ${newItem.certificateNo}`,
+        unitPrice: newItem.currentPrice,
+        stockQuantity: 1,
+        safetyThreshold: 2,
+        maxCapacity: 6,
+        unitLabel: '件',
+        storageZone: '保真恒温保险库 · C区',
+        image: newItem.image,
+        lastReplenishedAt: '刚刚入库',
+        quickReplenishPresets: [1, 2, 4],
+      },
+      ...prev,
+    ]);
     setChaTokens((prev) => prev + Math.floor(newItem.currentPrice / 50));
   };
 
@@ -520,6 +703,22 @@ export default function App() {
         c.id === item.id ? { ...c, status: 'sold', bidsCount: (c.bidsCount ?? 0) + 1 } : c
       )
     );
+    const timestamp = new Date().toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const deductResult = deductInventoryOnOrderWithAudit(
+      inventoryRecords,
+      [{ id: item.id, quantity: 1 }],
+      timestamp,
+      '寄售孤品结缘 · 自动出库'
+    );
+    setInventoryRecords(deductResult.updatedRecords);
+    if (deductResult.outboundLogs.length > 0) {
+      setReplenishLogs((prev) => [...deductResult.outboundLogs, ...prev]);
+    }
     setConsignModalState((prev) =>
       prev.item && prev.item.id === item.id
         ? {
@@ -561,6 +760,7 @@ export default function App() {
   // Preselect Salon Tea Handler (Closed Loop from Tea Profile Dossier, Terroir Explorer, ProductDetailModal & BrewingGuideModal)
   const handleSelectSalonTeaForReservation = (teaName: string, openModalImmediately = true) => {
     setPreselectedSalonTea(teaName);
+    setIsBackendViewOpen(false);
     setCurrentTab('room');
     if (openModalImmediately) {
       setReservationRoom(TEA_ROOMS[0]);
@@ -578,6 +778,7 @@ export default function App() {
 
   // Quick Reserve Featured Room from HomeView
   const handleQuickReserveRoom = (room: TeaRoom) => {
+    setIsBackendViewOpen(false);
     setCurrentTab('room');
     setReservationRoom(room);
   };
@@ -598,6 +799,11 @@ export default function App() {
   };
 
   const userOwnedConsignments = consignments.filter((c) => c.sellerName === '当前会员');
+  const inventorySummary = computeInventorySummary(inventoryRecords);
+  const inventoryValuationStatus = evaluateInventoryValuationStatus(
+    inventorySummary.totalValuation,
+    valuationThreshold
+  );
 
   // Compute live 5D Personal Tea Character Radar from orders, tasting reviews & persisted custom palate tags
   const aggregatedReviews = extractAggregatedOrderReviews(userOrders);
@@ -618,7 +824,9 @@ export default function App() {
         notification={activeNotification}
         onClose={() => setActiveNotification(null)}
         onClick={() => {
-          if (activeNotification?.booking) {
+          if (activeNotification?.kind === 'valuation-shortage') {
+            setIsBackendViewOpen(true);
+          } else if (activeNotification?.booking) {
             setInvitationBooking(activeNotification.booking);
             setIsInvitationOpen(true);
           } else if (activeBookings[0]) {
@@ -635,107 +843,162 @@ export default function App() {
         onOpenCart={() => setIsCartOpen(true)}
         cartCount={cartItems.reduce((acc, i) => acc + i.quantity, 0)}
         onOpenRitual={() => setIsDailyRitualOpen(true)}
+        onToggleBackend={() => setIsBackendViewOpen((prev) => !prev)}
+        isBackendActive={isBackendViewOpen}
+        lowStockAlertCount={inventorySummary.lowStockTotalCount}
+        isValuationShortageAlert={inventoryValuationStatus.isBelowThreshold}
       />
 
-      {/* Main Tab Destination Views */}
+      {/* Main Tab Destination Views or Store Backend Inventory Management View */}
       <main className="flex-1 overflow-y-auto min-h-0 no-scrollbar">
-        {currentTab === 'home' && (
-          <HomeView
-            onSelectTab={setCurrentTab}
-            onOpenProduct={(item) => setSelectedProduct(item)}
-            onOpenRitual={() => setIsDailyRitualOpen(true)}
-            onOpenWisdom={(item) => setSelectedWisdom(item)}
-            onReserveTeaInSalon={(teaName) => handleSelectSalonTeaForReservation(teaName, true)}
-            onQuickReserveRoom={handleQuickReserveRoom}
-            onFilterShop={handleFilterShop}
-            userTier={userTier}
-          />
-        )}
-
-        {currentTab === 'shop' && (
-          <ShopView
-            onOpenProduct={(item) => setSelectedProduct(item)}
-            onAddToCart={handleAddToCart}
-            userTier={userTier}
-            initialCategory={shopFilter.category}
-            initialSearchQuery={shopFilter.keyword}
-            onGoToHomeTerroir={() => setCurrentTab('home')}
-          />
-        )}
-
-        {currentTab === 'consign' && (
-          <ConsignView
+        {isBackendViewOpen ? (
+          <InventoryManagementDashboard
+            records={inventoryRecords}
+            replenishLogs={replenishLogs}
+            onReplenishItem={handleReplenishInventoryItem}
+            onBatchReplenish={handleBatchReplenishInventory}
+            onResetInventory={handleResetInventory}
+            onBackToStorefront={() => setIsBackendViewOpen(false)}
+            onTriggerValuationPush={handleTriggerValuationShortagePush}
+            valuationThreshold={valuationThreshold}
+            onUpdateValuationThreshold={setValuationThreshold}
+            onUpdateSafetyThreshold={handleUpdateSafetyThreshold}
+            userOrders={userOrders}
+            activeBookings={activeBookings}
             consignments={consignments}
-            onOpenConsignmentModal={(item, mode) =>
-              setConsignModalState({ isOpen: true, item, mode })
-            }
-            onGoToShop={() => setCurrentTab('shop')}
-            userTier={userTier}
-          />
-        )}
-
-        {currentTab === 'room' && (
-          <TeaRoomView
-            onSelectRoom={(room) => setReservationRoom(room)}
-            userTier={userTier}
-            selectedDate={selectedReservationDate}
-            onSelectDate={setSelectedReservationDate}
-            preselectedTea={preselectedSalonTea}
-            onClearPreselectedTea={() => setPreselectedSalonTea(null)}
+            onTriggerCourtesyPush={(b) => handleTriggerCourtesyPush(b)}
             onOpenInvitation={(b) => {
               setInvitationBooking(b);
               setIsInvitationOpen(true);
             }}
-            onOpenPosterModal={(b) => {
-              setPosterBooking(b);
-              setIsPosterOpen(true);
-            }}
-            onOpenMoodMemo={(b) => handleOpenMoodMemo(b)}
-            onTriggerCourtesyPush={(b) => handleTriggerCourtesyPush(b)}
-            onCancelBooking={handleCancelBooking}
-            onGoToHomeTerroir={() => setCurrentTab('home')}
-            activeBookings={activeBookings}
+            onUpdateConsignmentItem={handleUpdateConsignmentItem}
           />
-        )}
+        ) : (
+          <>
+            {currentTab === 'home' && (
+              <HomeView
+                onSelectTab={setCurrentTab}
+                onOpenProduct={(item) => setSelectedProduct(item)}
+                onOpenRitual={() => setIsDailyRitualOpen(true)}
+                onOpenWisdom={(item) => setSelectedWisdom(item)}
+                onReserveTeaInSalon={(teaName) => handleSelectSalonTeaForReservation(teaName, true)}
+                onQuickReserveRoom={handleQuickReserveRoom}
+                onFilterShop={handleFilterShop}
+                userTier={userTier}
+              />
+            )}
 
-        {currentTab === 'member' && (
-          <MemberView
-            userTier={userTier}
-            setUserTier={setUserTier}
-            leafPoints={leafPoints}
-            chaTokens={chaTokens}
-            onOpenPointsRedeem={() => setIsPointsRedeemOpen(true)}
-            onOpenDailyRitual={() => setIsDailyRitualOpen(true)}
-            onOpenConsignmentSubmit={() =>
-              setConsignModalState({ isOpen: true, item: null, mode: 'submit' })
-            }
-            recentOrdersCount={userOrders.length}
-            activeBookingsCount={activeBookings.length}
-            activeBookings={activeBookings}
-            userConsignmentsCount={userOwnedConsignments.length}
-            onOpenSalonReservation={() => setCurrentTab('room')}
-            onOpenResume={(tab) => setResumeModalState({ isOpen: true, initialTab: tab })}
-            onOpenTeaProfile={() => setIsTeaProfileOpen(true)}
-            onOpenInvitation={(b) => {
-              setInvitationBooking(b);
-              setIsInvitationOpen(true);
-            }}
-            onOpenPosterModal={(b) => {
-              setPosterBooking(b);
-              setIsPosterOpen(true);
-            }}
-            onOpenMoodMemo={(b) => handleOpenMoodMemo(b)}
-            onTriggerCourtesyPush={(b) => handleTriggerCourtesyPush(b)}
-            savedMemo={savedMoodMemo}
-            onResetDemoState={handleResetDemoState}
-            liveCharacterTitle={liveTeaProfile.characterTitle}
-            liveRadarScores={liveTeaProfile.radar}
-          />
+            {currentTab === 'shop' && (
+              <ShopView
+                onOpenProduct={(item) => setSelectedProduct(item)}
+                onAddToCart={handleAddToCart}
+                userTier={userTier}
+                initialCategory={shopFilter.category}
+                initialSearchQuery={shopFilter.keyword}
+                onGoToHomeTerroir={() => setCurrentTab('home')}
+              />
+            )}
+
+            {currentTab === 'consign' && (
+              <ConsignView
+                consignments={consignments}
+                onOpenConsignmentModal={(item, mode) =>
+                  setConsignModalState({ isOpen: true, item, mode })
+                }
+                onGoToShop={() => setCurrentTab('shop')}
+                userTier={userTier}
+              />
+            )}
+
+            {currentTab === 'room' && (
+              <TeaRoomView
+                onSelectRoom={(room, options) => {
+                  if (options?.dateStr) {
+                    setSelectedReservationDate(options.dateStr);
+                  }
+                  if (options?.timeSlot) {
+                    setSelectedReservationTimeSlot(options.timeSlot);
+                  } else {
+                    setSelectedReservationTimeSlot(null);
+                  }
+                  if (options?.pairedTea) {
+                    setPreselectedSalonTea(options.pairedTea);
+                  }
+                  if (options?.isCharcoalPrep !== undefined) {
+                    setIsCharcoalPrepActive(options.isCharcoalPrep);
+                  }
+                  setReservationRoom(room);
+                }}
+                userTier={userTier}
+                selectedDate={selectedReservationDate}
+                onSelectDate={setSelectedReservationDate}
+                preselectedTea={preselectedSalonTea}
+                onSelectPreselectedTea={(teaName) => setPreselectedSalonTea(teaName)}
+                onClearPreselectedTea={() => setPreselectedSalonTea(null)}
+                onOpenInvitation={(b) => {
+                  setInvitationBooking(b);
+                  setIsInvitationOpen(true);
+                }}
+                onOpenPosterModal={(b) => {
+                  setPosterBooking(b);
+                  setIsPosterOpen(true);
+                }}
+                onOpenMoodMemo={(b) => handleOpenMoodMemo(b)}
+                onTriggerCourtesyPush={(b) => handleTriggerCourtesyPush(b)}
+                onCancelBooking={handleCancelBooking}
+                onGoToHomeTerroir={() => setCurrentTab('home')}
+                activeBookings={activeBookings}
+              />
+            )}
+
+            {currentTab === 'member' && (
+              <MemberView
+                userTier={userTier}
+                setUserTier={setUserTier}
+                leafPoints={leafPoints}
+                chaTokens={chaTokens}
+                onOpenPointsRedeem={() => setIsPointsRedeemOpen(true)}
+                onOpenDailyRitual={() => setIsDailyRitualOpen(true)}
+                onOpenConsignmentSubmit={() =>
+                  setConsignModalState({ isOpen: true, item: null, mode: 'submit' })
+                }
+                recentOrdersCount={userOrders.length}
+                activeBookingsCount={activeBookings.length}
+                activeBookings={activeBookings}
+                userConsignmentsCount={userOwnedConsignments.length}
+                onOpenSalonReservation={() => setCurrentTab('room')}
+                onOpenResume={(tab) => setResumeModalState({ isOpen: true, initialTab: tab })}
+                onOpenTeaProfile={() => setIsTeaProfileOpen(true)}
+                onOpenInvitation={(b) => {
+                  setInvitationBooking(b);
+                  setIsInvitationOpen(true);
+                }}
+                onOpenPosterModal={(b) => {
+                  setPosterBooking(b);
+                  setIsPosterOpen(true);
+                }}
+                onOpenMoodMemo={(b) => handleOpenMoodMemo(b)}
+                onTriggerCourtesyPush={(b) => handleTriggerCourtesyPush(b)}
+                savedMemo={savedMoodMemo}
+                onResetDemoState={handleResetDemoState}
+                onOpenInventoryBackend={() => setIsBackendViewOpen(true)}
+                lowStockAlertCount={inventorySummary.lowStockTotalCount}
+                liveCharacterTitle={liveTeaProfile.characterTitle}
+                liveRadarScores={liveTeaProfile.radar}
+              />
+            )}
+          </>
         )}
       </main>
 
       {/* Fixed Mini Program Tab Bar */}
-      <TabBar currentTab={currentTab} onSelectTab={setCurrentTab} />
+      <TabBar
+        currentTab={currentTab}
+        onSelectTab={(tab) => {
+          setIsBackendViewOpen(false);
+          setCurrentTab(tab);
+        }}
+      />
 
       {/* Modals & Drawers */}
       <ProductDetailModal
@@ -775,11 +1038,16 @@ export default function App() {
 
       <ReservationModal
         isOpen={reservationRoom !== null}
-        onClose={() => setReservationRoom(null)}
+        onClose={() => {
+          setReservationRoom(null);
+          setSelectedReservationTimeSlot(null);
+        }}
         room={reservationRoom}
         userTier={userTier}
         initialDate={selectedReservationDate}
+        initialTimeSlot={selectedReservationTimeSlot}
         preselectedTea={preselectedSalonTea}
+        initialIsCharcoalPrep={isCharcoalPrepActive}
         onOpenInvitation={(b) => {
           setInvitationBooking(b);
           setIsInvitationOpen(true);

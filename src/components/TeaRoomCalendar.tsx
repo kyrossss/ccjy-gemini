@@ -219,7 +219,7 @@ export const TeaRoomCalendar: React.FC<TeaRoomCalendarProps> = ({
             <div className="flex items-center gap-2">
               <CalendarIcon className="w-3.5 h-3.5 text-[#8F733E]" />
               <span className="font-oriental-serif font-bold text-xs text-[#202723]">
-                已选预约日期：{selectedDate}
+                已选吉日：{selectedDate}
               </span>
               {selectedSolarTerm && (
                 <span className="text-[10px] font-oriental-serif bg-[#E8DFCD] text-[#7F6432] px-2 py-0.5 rounded-full font-medium">
@@ -229,7 +229,7 @@ export const TeaRoomCalendar: React.FC<TeaRoomCalendarProps> = ({
             </div>
             <p className="text-[11px] text-[#696357] font-light flex items-center gap-1">
               <Clock className="w-3 h-3 text-[#8F733E]" />
-              <span>当日茶室晨席 (09:30)、午席 (14:00)、暮席 (18:30) 均开放钦定</span>
+              <span>晨席、午席、暮席开放预订 · 榄炭慢烹活泉</span>
             </p>
           </div>
 
@@ -238,7 +238,7 @@ export const TeaRoomCalendar: React.FC<TeaRoomCalendarProps> = ({
               onClick={onQuickBookRoom}
               className="px-3.5 py-1.5 rounded-xl bg-[#232B26] hover:bg-[#181E1A] text-white text-xs font-oriental-serif tracking-wider shrink-0 transition-transform active:scale-95 shadow-xs"
             >
-              预留此日席位
+              预留席位
             </button>
           )}
         </div>

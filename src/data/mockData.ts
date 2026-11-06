@@ -960,7 +960,19 @@ export const POINTS_ITEMS: PointsItem[] = [
 
 /**
  * Tea Room Reservation Spaces (茶室预约)
+ * 纯粹私享：全舍仅设一室一席，由主理人一人亲自侍茶执壶，古法橄榄炭炭火慢烧山泉水。
  */
+export interface TeaSalonDetailedCopy {
+  lead: string;
+  roundsTitle?: string;
+  teaRounds: { round: string; tea: string; pricePerJin: string; desc: string }[];
+  vessels: { title: string; desc: string };
+  charcoalNotes: string;
+  scheduleNotes: string;
+  snacks: string;
+  notice: string;
+}
+
 export interface TeaRoom {
   id: string;
   name: string;
@@ -973,47 +985,197 @@ export interface TeaRoom {
   description: string;
   facilities: string[];
   recommendedTeas: string[];
+  tierOrder?: number;
+  duration?: string;
+  noticeAdvance?: string;
+  serviceType?: string;
+  cancellationRule?: string;
+  locationNote?: string;
+  detailedCopy?: TeaSalonDetailedCopy;
 }
 
 export const TEA_ROOMS: TeaRoom[] = [
   {
     id: 'room-01',
-    name: '「月藏」THE MOON\'S SILENT RETREAT',
-    enName: 'Moon Silent Mountain Retreat',
-    capacity: '2 - 6 人',
-    maxGuests: 6,
-    basePrice: 680,
+    name: '主理人一对一 · 顶级茶席',
+    enName: 'Private Master Sanctuary · Top-Tier Tea Salon',
+    capacity: '1 人（可携 1 位同伴）',
+    maxGuests: 2,
+    basePrice: 2680,
     image: '/assets/aistudio/IMG_6488_a1ec8e50.JPG',
-    theme: '月藏山水 · 幽玄枯山水庭院',
-    description: '春城嘉叶（深圳南山）旗舰茶舍核心席位。依窗眺望私家枯山水庭院与青苔竹影，配备纯银急须与吴瑞全手拉朱泥壶，远离都市尘嚣的深沉冥想空间。',
-    facilities: ['独立枯山水庭院', '潮州工夫茶四宝席', '吴瑞全手拉朱泥壶', '专业级茶席恒温矿泉水', '专属侍茶师'],
-    recommendedTeas: ['诸心·凤凰单丛', '沉芳·武夷岩茶', '水栀子·单丛'],
+    theme: '一对一专席 · 顶级岩茶与单丛 · 专车接送',
+    tierOrder: 1,
+    duration: '3–5 小时，时间由客户定',
+    noticeAdvance: '提前 2 天预约',
+    serviceType: '元/次',
+    locationNote: '深圳·北站附近，私人茶室，不对外开放',
+    cancellationRule: '开席前 24 小时取消，全额退还；24 小时内取消，可改期一次',
+    description:
+      '这一席，只为一个人开（可携一位同伴）。主理人全程亲自冲泡。他只守三样：凤凰单丛、武夷岩茶、潮州手拉壶。三泡茶，一泡比一泡往上走：1.28w/斤天花板凤凰单丛开味蕾；3.8w/斤高端武夷岩茶中足火入岩韵；8.8w/斤顶级武夷岩茶压轴登顶。好茶须用炭火，全程炭火候汤，炭煮活水直取茶汤。时间你定，提前两天私信沟通，时长 3–5 小时，不赶时间，茶喝透，话聊完为止。主理人自用 5w 起步手拉壶与万元级杯盏逐泡换器。店内藏器皆可上手。可安排专车接送。',
+    facilities: [
+      '一场只接待一人（可携一位同伴）',
+      '主理人全程亲自冲泡 · 全程炭火候汤',
+      '三泡茶逐级登顶（8.8w/斤 压轴登顶）',
+      '主理人自用 5w 起步潮州手拉壶',
+      '万元级柴窑公道壶与闻香杯 · 逐泡换器',
+      '时长 3–5 小时 · 可安排专车接送',
+    ],
+    recommendedTeas: [
+      '1.28w/斤｜天花板凤凰单丛（开味蕾）',
+      '3.8w/斤｜高端武夷岩茶·中足火（入岩韵）',
+      '8.8w/斤｜顶级武夷岩茶·中足火（压轴登顶）',
+    ],
+    detailedCopy: {
+      lead: '这一席，只为一个人开（可携一位同伴）。主理人全程亲自冲泡。他只守三样：凤凰单丛、武夷岩茶、潮州手拉壶。',
+      roundsTitle: '三泡茶，一泡比一泡往上走',
+      teaRounds: [
+        {
+          round: '第一泡',
+          tea: '天花板凤凰单丛',
+          pricePerJin: '1.28w/斤',
+          desc: '开味蕾，山韵通透，花蜜幽兰。',
+        },
+        {
+          round: '第二泡',
+          tea: '高端武夷岩茶',
+          pricePerJin: '3.8w/斤',
+          desc: '中足火，入岩韵，骨鲠沉郁，回甘悠长。',
+        },
+        {
+          round: '第三泡',
+          tea: '顶级武夷岩茶',
+          pricePerJin: '8.8w/斤',
+          desc: '中足火，压轴登顶——这一泡茶，即值这一席。',
+        },
+      ],
+      vessels: {
+        title: '主泡器：主理人自用（5w起步）',
+        desc: '茶汤的风味，不只在茶——水、器、茶，三者缺一不可。换一件器，香和汤都跟着变——这一席三泡茶，逐泡换器，喝的就是这个变化。主理人日常喝茶在用的"潮州手拉壶"，不是摆着看的藏品——5w起步；出汤的公道壶，万元级别；配套的闻香杯，万元级别；三泡茶，逐泡换器。店内藏器皆可上手，慢慢看。',
+      },
+      charcoalNotes: '好茶须用炭火，全程炭火候汤。炭煮活水，直取茶汤。开哪款，按当季库存同级现场定。',
+      scheduleNotes: '时间你定，提前两天私信沟通。时长 3–5 小时，不赶时间，茶喝透，话聊完为止。',
+      snacks: '席间配茶食（三泡各配一味、随泡上）。',
+      notice: '私人茶室在深圳·北站附近，提前2天私信预约，可安排专车接送。如需改期请提前24小时沟通；开席前24小时取消，全额退还，24小时内取消，可改期一次；一场只接待一人（可携一位同伴）。',
+    },
   },
   {
     id: 'room-02',
-    name: '「竹寂」BAMBOO SILENCE',
-    enName: 'Bamboo Silence Pavilion',
-    capacity: '1 - 4 人',
+    name: '主理人亲泡 · 炭火茶席（包场，可携3位）',
+    enName: 'Private Charcoal Tea Salon · Exclusive Master Host',
+    capacity: '一组（可携最多 3 位同伴，不拼席）',
     maxGuests: 4,
-    basePrice: 480,
-    image: '/assets/aistudio/IMG_6491_1582fce7.JPG',
-    theme: '竹影婆娑 · 慢生活哲学',
-    description: '竹林环抱的素朴空间，微风吹拂竹叶沙沙作响。柔和天光洒落长条老木茶桌，适合挚友小叙或一人静心品味山场原叶。',
-    facilities: ['全景观竹格栅', '天然草木线香', '景德镇双描金白杯套组', '静音纯净水系统'],
-    recommendedTeas: ['清风挂怀·单丛', '兰芷·武夷岩茶', '爻·茶简'],
+    basePrice: 1280,
+    image: '/assets/aistudio/IMG_6486_3fb9fe71.JPG',
+    theme: '独立包场 · 榄炭活泉 · 逐泡换器',
+    tierOrder: 2,
+    duration: '每场 3 小时（双时段任选）',
+    noticeAdvance: '提前 1 天预约',
+    serviceType: '元/次',
+    locationNote: '深圳·北站附近，私人茶室，不对外开放',
+    cancellationRule: '开席前 24 小时取消，全额退还；24 小时内取消，可改期一次',
+    description:
+      '深圳·北站附近，私人茶室，不对外开放。主理人亲泡，只守三样：凤凰单丛、武夷岩茶、潮州手拉壶。人少，茶才喝得安静。一场只接待一组，可携最多3位同伴，不与外人拼席。两个时间段任选，先约先得：下午场 14:00–17:00 / 夜晚场 20:00–23:00，每场 3 小时。炭煮活水，直取茶汤。三款茶（1.28w/斤清香型天花板、1.38w/斤浓香型天花板、2.28w/斤高端纯料中足火老枞），一泡十五冲，香不落，汤不薄。万元级潮州手拉壶、柴窑天花板公道杯与青花杯逐泡换器。煮水用砂铫，炭火现烧，件件可上手细看。带上你的人，安安静静喝好茶。',
+    facilities: [
+      '一场只接待一组（可携最多3位同伴，不拼席）',
+      '下午场 14:00–17:00 ／ 夜晚场 20:00–23:00',
+      '每场 3 小时 · 炭煮活水直取茶汤',
+      '三款好茶（1.28w/斤、1.38w/斤、2.28w/斤纯料老枞）',
+      '主泡器万元级潮州手拉壶 · 逐泡换器',
+      '煮水用砂铫炭火现烧 · 席间配茶食',
+    ],
+    recommendedTeas: [
+      '1.28w/斤｜凤凰单丛·清香型天花板（打开味蕾）',
+      '1.38w/斤｜凤凰单丛·浓香型天花板（浓而不烈）',
+      '2.28w/斤｜武夷岩茶·高端纯料老枞（收官见真章）',
+    ],
+    detailedCopy: {
+      lead: '深圳·北站附近，私人茶室，不对外开放。主理人亲泡，只守三样：凤凰单丛、武夷岩茶、潮州手拉壶。人少，茶才喝得安静。一场只接待一组，可携最多3位同伴，不与外人拼席。',
+      roundsTitle: '三款茶 · 一泡十五冲，香不落，汤不薄',
+      teaRounds: [
+        {
+          round: '第一款',
+          tea: '凤凰单丛·清香型天花板',
+          pricePerJin: '1.28w/斤',
+          desc: '打开味蕾，高扬花香，清冽回甘。',
+        },
+        {
+          round: '第二款',
+          tea: '凤凰单丛·浓香型天花板',
+          pricePerJin: '1.38w/斤',
+          desc: '浓而不烈，醇厚饱满，韵味深长。',
+        },
+        {
+          round: '第三款',
+          tea: '武夷岩茶·高端纯料中足火老枞',
+          pricePerJin: '2.28w/斤',
+          desc: '收官见真章，枞味入骨，兰香耐寻。',
+        },
+      ],
+      vessels: {
+        title: '主泡器：万元级别',
+        desc: '茶汤的风味，不只在茶——水、器、茶，三者缺一不可。换一件器，香和汤都跟着变——这一席三泡茶，逐泡换器，喝的就是这个变化。主泡器用"潮州手拉壶"——按当天的茶选壶出汤；出汤的公道杯（柴窑天花板）万元级别；配套的闻香杯（柴窑青花杯）大千元级别；三泡茶，逐泡换器。煮水用砂铫，炭火现烧。件件可上手细看。',
+      },
+      charcoalNotes: '炭煮活水，直取茶汤。砂铫榄炭现烧，火候合度。',
+      scheduleNotes: '两个时间段任选，先约先得：下午场 14:00–17:00；夜晚场 20:00–23:00。每场 3 小时。',
+      snacks: '席间配茶食（一干一鲜两小碟）。',
+      notice: '请至少提前1天私信约时间；如需改期，请提前1天沟通；开席前24小时取消，全额退还，24小时内取消，可改期一次。',
+    },
   },
   {
     id: 'room-03',
-    name: '「裕唐」SHIN TANG CEREMONY',
-    enName: 'Shin Tang Grand Poetry Chamber',
-    capacity: '4 - 10 人',
-    maxGuests: 10,
-    basePrice: 1280,
-    image: '/assets/aistudio/IMG_6490_7c61932b.JPG',
-    theme: '诗时拾食 · 沉香墨韵大雅集',
-    description: '宽阔的东方黑金墨韵殿堂级茶室，陈设明代古董案几与名家水墨立轴，专为高规格商务茶叙、名家壶友鉴赏会及高端私宴量身打造。',
-    facilities: ['独立 VIP 专属通道', '恒温恒湿母仓展柜', '双侍茶师席位', '投屏与雅集录音设备', '茶点定制服务'],
-    recommendedTeas: ['水龙吟·正岩肉桂', '沉芳·武夷岩茶', '1996年老生普'],
+    name: '主理人亲泡 · 初席',
+    enName: 'Master Host Debut Tea Salon',
+    capacity: '2–3 位（一场只接待两三位）',
+    maxGuests: 3,
+    basePrice: 598,
+    image: '/assets/aistudio/IMG_6487_f774f6f1.JPG',
+    theme: '初席正饮 · 炭火候汤 · 兴至添原茶',
+    tierOrder: 3,
+    duration: '2–3 小时，全程炭火候汤',
+    noticeAdvance: '提前 1 天预约',
+    serviceType: '元/场',
+    locationNote: '深圳·北站附近，私人茶室，不对外开放',
+    cancellationRule: '开席前 24 小时取消，全额退还；24 小时内取消，可改期一次',
+    description:
+      '深圳·北站附近，私人茶室，不对外开放。主理人亲泡，只守三样：凤凰单丛、武夷岩茶、潮州手拉壶。这一席，是为"第一次"正经坐下来喝茶的人开的。一场只接待两三位，时长2-3小时，全程炭火候汤。主理人亲泡两款凤凰单丛：第一泡清香型天花板 1.28w/斤开味蕾；第二泡浓香型天花板 1.38w/斤浓而不烈。炭煮活水，直取茶汤。两泡是规矩，规矩之外看兴致：聊得尽兴、喝得投机，主理人兴致到了，会再添一泡自己存着的原茶；你若带了好茶来，也摆上桌一起喝。这一泡不写在规格里——茶桌上的人情从来不是靠写的。席上用器求干净利落，配套盖碗冲泡，玻璃公道杯出汤，白瓷杯品饮，器不抢茶风头。席间配茶食。',
+    facilities: [
+      '为"第一次"正经坐下来喝茶的人开',
+      '一场只接待两三位 · 时长 2–3 小时',
+      '全程炭火候汤 · 炭煮活水直取茶汤',
+      '两款天花板凤凰单丛（1.28w/斤 与 1.38w/斤）',
+      '规矩之外看兴致 · 尽兴可添主理人私藏原茶',
+      '盖碗冲泡与白瓷盏 · 席间配茶食',
+    ],
+    recommendedTeas: [
+      '1.28w/斤｜凤凰单丛·清香型天花板（开味蕾）',
+      '1.38w/斤｜凤凰单丛·浓香型天花板（浓而不烈）',
+    ],
+    detailedCopy: {
+      lead: '深圳·北站附近，私人茶室，不对外开放。主理人亲泡，只守三样：凤凰单丛、武夷岩茶、潮州手拉壶。这一席，是为"第一次"正经坐下来喝茶的人开的。一场只接待两三位，时长2-3小时，全程炭火候汤。',
+      roundsTitle: '主理人亲泡 · 两款凤凰单丛',
+      teaRounds: [
+        {
+          round: '第一泡',
+          tea: '清香型·天花板',
+          pricePerJin: '1.28w/斤',
+          desc: '开味蕾，活泉生香，喉韵甘润。',
+        },
+        {
+          round: '第二泡',
+          tea: '浓香型·天花板',
+          pricePerJin: '1.38w/斤',
+          desc: '浓而不烈，中火焙香，醇厚绵长。',
+        },
+      ],
+      vessels: {
+        title: '席上用器：求干净利落',
+        desc: '配套盖碗冲泡，玻璃公道杯出汤，白瓷杯品饮——器不抢茶的风头。席间配茶食。',
+      },
+      charcoalNotes: '炭煮活水，直取茶汤。全程炭火候汤。',
+      scheduleNotes: '两泡是规矩，规矩之外，看兴致：聊得尽兴、喝得投机，主理人兴致到了，会再添一泡自己存着的原茶；你若带了好茶来，也摆上桌，一起喝。这一泡，不写在规格里——茶桌上的人情，从来不是靠写的。',
+      snacks: '席间配茶食（原味坚果一小碟）。',
+      notice: '请至少提前1天私信约时间；如需改期，请提前24小时沟通；开席前24小时取消，全额退还，24小时内取消，可改期一次。',
+    },
   },
 ];
 
@@ -1028,27 +1190,11 @@ export interface Sommelier {
 
 export const SOMMELIERS: Sommelier[] = [
   {
-    id: 'som-01',
-    name: '苏婉',
-    title: '首席潮州工夫侍茶师',
-    experience: '行茶十一年',
-    avatar: '婉',
-    specialty: '潮州工夫茶法（关公巡城/韩信点兵） · 凤凰单丛滚水急出',
-  },
-  {
-    id: 'som-02',
-    name: '陈默',
-    title: '武夷岩茶与器物顾问',
-    experience: '行茶十四年',
-    avatar: '默',
-    specialty: '正岩山场气韵辨识 · 潮州手拉与宜兴手拍壶养器',
-  },
-  {
-    id: 'som-03',
-    name: '何清晏',
-    title: '爻 YÁO 创新茶事研习师',
-    experience: '行茶八年',
-    avatar: '晏',
-    specialty: '当代茶简冲泡调控 · 景德镇赏瓷白杯茶席美学',
+    id: 'som-host',
+    name: '主理人',
+    title: '春城嘉叶茶舍主理人',
+    experience: '行茶十五载',
+    avatar: '叶',
+    specialty: '古法红泥炉炭火候汤 · 潮州工夫原法 · 正岩与单丛亲泡',
   },
 ];

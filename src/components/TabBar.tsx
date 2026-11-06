@@ -66,13 +66,13 @@ export const TabBar: React.FC<TabBarProps> = ({ currentTab, onSelectTab }) => {
                 {tab.icon}
               </div>
               <span
-                className={`text-[11px] font-oriental-serif mt-0.5 tracking-tight ${
+                className={`text-[11px] font-oriental-serif mt-0.5 tracking-tight whitespace-nowrap text-center ${
                   isActive ? 'font-bold text-[#1E2320]' : 'font-normal'
                 }`}
               >
                 {tab.label}
               </span>
-              <span className="text-[8px] tracking-widest font-mono text-[#A8A296] uppercase scale-90">
+              <span className="text-[8px] tracking-widest font-mono text-[#A8A296] uppercase scale-90 whitespace-nowrap text-center">
                 {tab.en}
               </span>
             </button>

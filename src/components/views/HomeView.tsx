@@ -175,7 +175,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               今日朝夕点茶 · 凝神片刻
             </h3>
             <p className="text-[11px] text-[#C4BDB0] font-light">
-              静候沸水浸泡，完成签到即享 +50 叶值与 2 茗元
+              静候沸水浸泡，完成签到即享 +50 叶值与 2 嘉叶币
             </p>
           </div>
           <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/20 shrink-0">
